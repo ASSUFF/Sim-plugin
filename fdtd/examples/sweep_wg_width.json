@@ -1,0 +1,67 @@
+{
+  "name": "wg_width",
+  "base": {
+    "name": "wg_width",
+    "hide_gui": true,
+    "global_source": {
+      "wavelength start": 1.5e-6,
+      "wavelength stop": 1.6e-6
+    },
+    "simulation": {
+      "dimension": "2D",
+      "x": 0,
+      "x span": 6e-6,
+      "y": 0,
+      "y span": 4e-6,
+      "mesh accuracy": 1,
+      "simulation time": 4e-13,
+      "auto shutoff min": 1e-4,
+      "x min bc": "PML",
+      "x max bc": "PML",
+      "y min bc": "PML",
+      "y max bc": "PML"
+    },
+    "commands": [
+      {
+        "op": "addrect",
+        "properties": {
+          "name": "waveguide",
+          "material": "Si (Silicon) - Palik",
+          "x": 0,
+          "y": 0,
+          "x span": 6e-6,
+          "y span": 0.4e-6
+        }
+      },
+      {
+        "op": "addmode",
+        "properties": {
+          "name": "source",
+          "injection axis": "x-axis",
+          "direction": "Forward",
+          "mode selection": "fundamental mode",
+          "x": -1.5e-6,
+          "y": 0,
+          "y span": 2.4e-6
+        }
+      },
+      {
+        "op": "addpower",
+        "properties": {
+          "name": "monitor_out",
+          "monitor type": "Linear Y",
+          "x": 1.5e-6,
+          "y": 0,
+          "y span": 2.4e-6
+        }
+      }
+    ],
+    "script": "setglobalmonitor('frequency points', 3); setglobalmonitor('use source limits', 1); setglobalmonitor('use wavelength spacing', 1);",
+    "exports": [
+      {"name": "T", "kind": "transmission", "monitor": "monitor_out"}
+    ]
+  },
+  "parameter": {"object": "waveguide", "property": "y span"},
+  "values": [2.0e-7, 5.0e-7],
+  "metric": {"export": "T", "goal": "max", "wavelength_m": 1.55e-6}
+}
