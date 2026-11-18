@@ -10,6 +10,8 @@ description: >
 
 The working directory is the plugin root, the folder that contains `pyproject.toml`. On Windows the command is `.venv\Scripts\python.exe -m sim_plugin`. If `hfss_doctor`, `hfss_validate`, `hfss_prepare`, `hfss_run`, `hfss_sweep`, `hfss_optimize`, and `hfss_advise` are already available, call those tools.
 
+When the user states a simulation task in full for the first time, do not launch HFSS. Organize the request, fill in settings that are easy to miss, and ask the user to confirm. Mark each item as specified or assumed. Cover frequency, geometry and materials, the solution region, mesh or adaptive-pass accuracy, the S-parameters to report, and, for a sweep or search, the goal, the range, and the run limit. Start `run`, `sweep`, or `optimize` only after confirmation.
+
 Lengths are metres and frequency is hertz. For S21 use `dB(S(P2,P1))` and `goal: max`. For S11 use `dB(S(P1,P1))` and `goal: min`.
 
 Call `hfss doctor` first. If port `1055@localhost` is closed, do not start a solve. `hfss run` solves one spec. `hfss sweep` compares 2 to 8 values of one parameter. `hfss optimize` searches one numeric path, at most 8 times. After a solve, call `hfss advise` and write the advice from those facts.

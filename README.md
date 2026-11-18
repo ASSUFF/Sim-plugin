@@ -4,11 +4,24 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-18. Version `v0.1.1118.2`.
+Updated 2026-11-18. Version `v0.1.1118.3`.
 
-The version has four parts, `v0.1.1118.2`. The first `0` means it is not a formal release yet. The second `1` is the major version and changes only for a large update. The third `1118` is the month and day of the update. The fourth `2` is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.1.1118.3`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
+
+## Confirm the first task
+
+When the user states a simulation task in full for the first time, do not launch a solver yet. Organize the request into a list and ask the user to confirm it. Keep every condition the user already gave, and fill in settings that are easy to miss but change the result. Mark each item as specified by the user or assumed for this run. Cover at least:
+
+- wavelength or frequency, and bandwidth
+- simulation region and boundaries
+- geometry and materials
+- model detail, and mesh or solver accuracy
+- simulation time, adaptive passes, and convergence
+- quantities to report; for a sweep or search, also the goal, the value range, and the run limit
+
+Start a solver command only after the user confirms the list. A later change that only rewords the task, and does not change these settings, does not need another confirmation.
 
 Run every command from the **plugin root**, the directory that contains `pyproject.toml`. Nothing in these instructions depends on a fixed drive letter.
 
