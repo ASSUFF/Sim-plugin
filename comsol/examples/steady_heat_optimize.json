@@ -1,0 +1,19 @@
+{
+  "parameters": {
+    "L": {"value": "0.1[m]"},
+    "k": {"value": "10[W/(m*K)]"},
+    "rho": {"value": "1000[kg/m^3]"},
+    "Cp": {"value": "1000[J/(kg*K)]"},
+    "T_cold": {"value": "300[K]"},
+    "T_hot": {"value": "400[K]"}
+  },
+  "optimize": {
+    "parameter": "T_hot",
+    "min": 320,
+    "max": 480,
+    "unit": "K",
+    "max_runs": 4
+  },
+  "exports": ["T_avg_K", "T_max_K", "T_min_K"],
+  "goal": {"expression": "T_avg_K", "sense": "min"}
+}
