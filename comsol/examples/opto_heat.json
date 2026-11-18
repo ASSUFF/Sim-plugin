@@ -1,0 +1,13 @@
+{
+  "parameters": {
+    "L": {"value": "0.02[m]"},
+    "kappa": {"value": "50[1/m]"},
+    "I_beam": {"value": "1000[W/m^2]"},
+    "k_solid": {"value": "0.2[W/(m*K)]"},
+    "rho": {"value": "1000[kg/m^3]"},
+    "Cp": {"value": "1000[J/(kg*K)]"},
+    "T_amb": {"value": "300[K]"}
+  },
+  "exports": ["T_max_K", "T_min_K", "T_max_expected_K", "T_max_error_K", "I_max", "I_min"],
+  "goal": {"expression": "T_max_error_K", "sense": "min"}
+}

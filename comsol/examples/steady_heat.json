@@ -1,0 +1,10 @@
+{
+  "parameters": {
+    "L": {"value": "0.1[m]", "min": 0.05, "max": 0.2},
+    "k": {"value": "10[W/(m*K)]", "min": 1, "max": 50},
+    "T_cold": {"value": "300[K]", "min": 250, "max": 350},
+    "T_hot": {"value": "400[K]", "min": 320, "max": 500}
+  },
+  "exports": ["T_avg_K", "T_max_K", "T_min_K"],
+  "goal": {"expression": "T_avg_K", "sense": "min"}
+}

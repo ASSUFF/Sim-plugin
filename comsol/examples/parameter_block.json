@@ -1,0 +1,10 @@
+{
+  "parameters": {
+    "L": {
+      "value": "20[mm]",
+      "min": 5,
+      "max": 40
+    }
+  },
+  "exports": ["L"]
+}
