@@ -1,0 +1,40 @@
+{
+  "name": "smoke_2d",
+  "hide_gui": true,
+  "global_source": {
+    "wavelength start": 1.55e-6,
+    "wavelength stop": 1.55e-6
+  },
+  "simulation": {
+    "dimension": "2D",
+    "x": 0,
+    "x span": 2e-6,
+    "y": 0,
+    "y span": 2e-6,
+    "mesh accuracy": 1,
+    "simulation time": 2e-14
+  },
+  "commands": [
+    {
+      "op": "adddipole",
+      "properties": {
+        "name": "source",
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "op": "addpower",
+      "properties": {
+        "name": "monitor",
+        "monitor type": "Linear X",
+        "x": 0,
+        "y": 0.4e-6,
+        "x span": 1e-6
+      }
+    }
+  ],
+  "exports": [
+    {"name": "T", "monitor": "monitor", "result": "T"}
+  ]
+}

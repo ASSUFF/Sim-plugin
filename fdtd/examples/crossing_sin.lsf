@@ -1,0 +1,233 @@
+redrawoff;
+
+L_wg = 10e-6;
+L_tap = 5e-6;
+L_x = 10e-6;
+W_wg = 1e-6;
+W_x = 3e-6;
+thick = 400e-9;
+N = 41;
+mat = "Si3N4 (Silicon Nitride) - Luke";
+
+select("FDTD");
+set("background material", "SiO2 (Glass) - Palik");
+set("auto shutoff min", 1e-5);
+
+addrect;
+set("name", "wg_left");
+set("material", mat);
+set("x", -(L_x/2 + L_tap + L_wg/2));
+set("y", 0);
+set("z", 0);
+set("x span", L_wg);
+set("y span", W_wg);
+set("z span", thick);
+
+addrect;
+set("name", "wg_right");
+set("material", mat);
+set("x", (L_x/2 + L_tap + L_wg/2));
+set("y", 0);
+set("z", 0);
+set("x span", L_wg);
+set("y span", W_wg);
+set("z span", thick);
+
+addrect;
+set("name", "wg_top");
+set("material", mat);
+set("x", 0);
+set("y", (L_x/2 + L_tap + L_wg/2));
+set("z", 0);
+set("y span", L_wg);
+set("x span", W_wg);
+set("z span", thick);
+
+addrect;
+set("name", "wg_bottom");
+set("material", mat);
+set("x", 0);
+set("y", -(L_x/2 + L_tap + L_wg/2));
+set("z", 0);
+set("y span", L_wg);
+set("x span", W_wg);
+set("z span", thick);
+
+addrect;
+set("name", "cross_h");
+set("material", mat);
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("x span", L_x);
+set("y span", W_x);
+set("z span", thick);
+
+addrect;
+set("name", "cross_v");
+set("material", mat);
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("x span", W_x);
+set("y span", L_x);
+set("z span", thick);
+
+x_wide = -L_x/2;
+x_narrow = -(L_x/2 + L_tap);
+verts = matrix(2*N, 2);
+for(i=1:N) {
+    t = (i-1)/(N-1);
+    x = x_narrow + (x_wide - x_narrow)*t;
+    u = (x_wide - x)/(x_wide - x_narrow);
+    halfw = W_x/2 + (W_wg/2 - W_x/2)*u^2;
+    verts(i,1) = x;
+    verts(i,2) = halfw;
+    verts(2*N+1-i,1) = x;
+    verts(2*N+1-i,2) = -halfw;
+}
+addpoly;
+set("name", "taper_left");
+set("material", mat);
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("z span", thick);
+set("vertices", verts);
+
+x_wide = L_x/2;
+x_narrow = L_x/2 + L_tap;
+verts = matrix(2*N, 2);
+for(i=1:N) {
+    t = (i-1)/(N-1);
+    x = x_narrow + (x_wide - x_narrow)*t;
+    u = (x - x_wide)/(x_narrow - x_wide);
+    halfw = W_x/2 + (W_wg/2 - W_x/2)*u^2;
+    verts(i,1) = x;
+    verts(i,2) = halfw;
+    verts(2*N+1-i,1) = x;
+    verts(2*N+1-i,2) = -halfw;
+}
+addpoly;
+set("name", "taper_right");
+set("material", mat);
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("z span", thick);
+set("vertices", verts);
+
+y_wide = L_x/2;
+y_narrow = L_x/2 + L_tap;
+verts = matrix(2*N, 2);
+for(i=1:N) {
+    t = (i-1)/(N-1);
+    y = y_narrow + (y_wide - y_narrow)*t;
+    u = (y - y_wide)/(y_narrow - y_wide);
+    halfw = W_x/2 + (W_wg/2 - W_x/2)*u^2;
+    verts(i,1) = halfw;
+    verts(i,2) = y;
+    verts(2*N+1-i,1) = -halfw;
+    verts(2*N+1-i,2) = y;
+}
+addpoly;
+set("name", "taper_top");
+set("material", mat);
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("z span", thick);
+set("vertices", verts);
+
+y_wide = -L_x/2;
+y_narrow = -(L_x/2 + L_tap);
+verts = matrix(2*N, 2);
+for(i=1:N) {
+    t = (i-1)/(N-1);
+    y = y_narrow + (y_wide - y_narrow)*t;
+    u = (y - y_wide)/(y_narrow - y_wide);
+    halfw = W_x/2 + (W_wg/2 - W_x/2)*u^2;
+    verts(i,1) = halfw;
+    verts(i,2) = y;
+    verts(2*N+1-i,1) = -halfw;
+    verts(2*N+1-i,2) = y;
+}
+addpoly;
+set("name", "taper_bottom");
+set("material", mat);
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("z span", thick);
+set("vertices", verts);
+
+addmesh;
+set("name", "mesh_core");
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("x span", 41e-6);
+set("y span", 41e-6);
+set("z span", 0.6e-6);
+set("override x mesh", 0);
+set("override y mesh", 0);
+set("override z mesh", 1);
+set("dz", 50e-9);
+
+addmode;
+set("name", "source_left");
+set("injection axis", "x-axis");
+set("direction", "Forward");
+set("x", -19e-6);
+set("y", 0);
+set("z", 0);
+set("y span", 3e-6);
+set("z span", 2.2e-6);
+set("mode selection", "fundamental TE mode");
+
+addmode;
+set("name", "source_top");
+set("injection axis", "y-axis");
+set("direction", "Backward");
+set("x", 0);
+set("y", 19e-6);
+set("z", 0);
+set("x span", 3e-6);
+set("z span", 2.2e-6);
+set("mode selection", "fundamental TE mode");
+
+addpower;
+set("name", "monitor_right");
+set("monitor type", "2D X-normal");
+set("x", 19e-6);
+set("y", 0);
+set("z", 0);
+set("y span", 3e-6);
+set("z span", 2.2e-6);
+
+addpower;
+set("name", "monitor_bottom");
+set("monitor type", "2D Y-normal");
+set("x", 0);
+set("y", -19e-6);
+set("z", 0);
+set("x span", 3e-6);
+set("z span", 2.2e-6);
+
+addprofile;
+set("name", "monitor_plane");
+set("monitor type", "2D Z-normal");
+set("x", 0);
+set("y", 0);
+set("z", 0);
+set("x span", 42e-6);
+set("y span", 42e-6);
+set("override global monitor settings", 1);
+set("use source limits", 0);
+set("wavelength center", 1.55e-6);
+set("wavelength span", 0);
+set("frequency points", 1);
+
+setglobalmonitor("frequency points", 5);
+setglobalmonitor("use source limits", 1);
+setglobalmonitor("use wavelength spacing", 1);

@@ -1,0 +1,31 @@
+{
+  "name": "sin_crossing",
+  "hide_gui": true,
+  "global_source": {
+    "wavelength start": 1.53e-6,
+    "wavelength stop": 1.57e-6
+  },
+  "simulation": {
+    "dimension": "3D",
+    "x": 0,
+    "x span": 45e-6,
+    "y": 0,
+    "y span": 45e-6,
+    "z": 0,
+    "z span": 3.6e-6,
+    "mesh accuracy": 2,
+    "simulation time": 2.5e-12,
+    "x min bc": "PML",
+    "x max bc": "PML",
+    "y min bc": "PML",
+    "y max bc": "PML",
+    "z min bc": "PML",
+    "z max bc": "PML"
+  },
+  "script_file": "crossing_sin.lsf",
+  "exports": [
+    {"name": "T_right", "kind": "transmission", "monitor": "monitor_right"},
+    {"name": "T_bottom", "kind": "transmission", "monitor": "monitor_bottom"},
+    {"name": "E_plane", "monitor": "monitor_plane", "result": "E"}
+  ]
+}
