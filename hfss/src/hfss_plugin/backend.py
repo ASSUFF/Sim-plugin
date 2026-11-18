@@ -1,7 +1,8 @@
-"""Call the existing hfss-aedt package in its own environment.
+"""Call an hfss-aedt checkout in its own environment.
 
-The backend lives at S:\\simulation\\FDTD\\ai\\hfss-aedt. doctor, validate, and
-prepare do not launch Electronics Desktop.
+Set HFSS_AEDT_PYTHON and HFSS_AEDT_SRC to that checkout. When they are unset,
+the development-machine checkout is used if it is present. doctor, validate,
+and prepare do not launch Electronics Desktop.
 """
 
 from __future__ import annotations
@@ -14,10 +15,28 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-BACKEND_PYTHON = Path(r"S:\simulation\FDTD\ai\em-sim\.venv\Scripts\python.exe")
-BACKEND_SRC = Path(r"S:\simulation\FDTD\ai\hfss-aedt\src")
-ENGINE = BACKEND_SRC / "hfss_aedt" / "engine.py"
-PROTECTED_PROJECT = Path(r"S:\simulation\HFSS\4mm.aedt")
+_DEFAULT_BACKEND_PYTHON = Path(r"S:\simulation\FDTD\ai\em-sim\.venv\Scripts\python.exe")
+_DEFAULT_BACKEND_SRC = Path(r"S:\simulation\FDTD\ai\hfss-aedt\src")
+_DEFAULT_PROTECTED_PROJECT = Path(r"S:\simulation\HFSS\4mm.aedt")
+
+
+def _backend_python() -> Path:
+    override = os.environ.get("HFSS_AEDT_PYTHON")
+    return Path(override) if override else _DEFAULT_BACKEND_PYTHON
+
+
+def _backend_src() -> Path:
+    override = os.environ.get("HFSS_AEDT_SRC")
+    return Path(override) if override else _DEFAULT_BACKEND_SRC
+
+
+def _engine_path() -> Path:
+    return _backend_src() / "hfss_aedt" / "engine.py"
+
+
+def _protected_project_path() -> Path:
+    override = os.environ.get("HFSS_PROTECTED_PROJECT")
+    return Path(override) if override else _DEFAULT_PROTECTED_PROJECT
 
 _DOCTOR = r"""
 import json
@@ -137,7 +156,7 @@ def _protected_project(spec: dict) -> dict | None:
     if not isinstance(project, str) or not project.strip():
         return None
     try:
-        same = Path(project).resolve() == PROTECTED_PROJECT.resolve()
+        same = Path(project).resolve() == _protected_project_path().resolve()
     except OSError:
         same = False
     if not same:
@@ -145,26 +164,27 @@ def _protected_project(spec: dict) -> dict | None:
     return {
         "ok": False,
         "launched_solver": False,
-        "error": f"不会打开或复制 {PROTECTED_PROJECT}。请换一个工程。",
+        "error": f"不会打开或复制 {_protected_project_path()}。请换一个工程。",
     }
 
 
 def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, runner) -> dict:
-    executable = Path(python) if python is not None else BACKEND_PYTHON
+    executable = Path(python) if python is not None else _backend_python()
+    engine = _engine_path()
     if not executable.is_file():
         return {"ok": False, "launched_solver": False, "error": f"没有找到 HFSS 后端解释器：{executable}"}
-    if not ENGINE.is_file():
-        return {"ok": False, "launched_solver": False, "error": f"没有找到 HFSS 引擎：{ENGINE}"}
+    if not engine.is_file():
+        return {"ok": False, "launched_solver": False, "error": f"没有找到 HFSS 引擎：{engine}"}
     inbox = _runs_root() / "_inbox"
     inbox.mkdir(parents=True, exist_ok=True)
     spec_path = inbox / f"{action}.json"
     spec_path.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(BACKEND_SRC if src is None else src) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(_backend_src() if src is None else src) + os.pathsep + env.get("PYTHONPATH", "")
     env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))
     env.setdefault("ANSYSLMD_LICENSE_FILE", "1055@localhost")
     completed = runner(
-        [str(executable), str(ENGINE), action, "--spec", str(spec_path)],
+        [str(executable), str(engine), action, "--spec", str(spec_path)],
         input=None,
         capture_output=True,
         text=True,
@@ -197,8 +217,8 @@ def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, r
 
 
 def _invoke(script: str, payload: dict | None, *, python: Path | None, src: Path | None, runner) -> dict:
-    executable = Path(python) if python is not None else BACKEND_PYTHON
-    source = Path(src) if src is not None else BACKEND_SRC
+    executable = Path(python) if python is not None else _backend_python()
+    source = Path(src) if src is not None else _backend_src()
     if not executable.is_file():
         return {
             "ok": False,

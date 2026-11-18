@@ -1,0 +1,16 @@
+{
+  "name": "wr90",
+  "hide_gui": true,
+  "solution_type": "Modal",
+  "design": "WR90",
+  "frequency_hz": 10000000000,
+  "max_passes": 4,
+  "max_delta_s": 0.02,
+  "geometry": {
+    "kind": "rectangular_waveguide",
+    "a_m": 0.02286,
+    "b_m": 0.01016,
+    "length_m": 0.03,
+    "material": "vacuum"
+  }
+}

@@ -1,6 +1,6 @@
 # lumerical-fdtd
 
-这份代码已收进 `S:\Work\Grok Work\1113\fdtd`。统一入口是 `python -m sim_plugin fdtd`。使用说明见同目录的 `使用说明.md`。
+统一入口是在插件根目录执行 `python -m sim_plugin fdtd`。使用说明见同目录的 `使用说明.md`，总说明见上一级的 `使用说明.md` 和 `README.md`。
 
 MCP server that drives a local Ansys Lumerical FDTD install. Cursor, Claude Desktop, Claude Code, Codex, and any other MCP client can call the same tools. The server does not call a language model; the agent does.
 

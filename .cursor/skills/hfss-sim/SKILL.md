@@ -1,20 +1,23 @@
 ---
 name: hfss-sim
 description: >
-  驱动本机 Ansys HFSS 2024.2 求解、扫描和寻优。用户提到 HFSS、Electronics Desktop、
-  .aedt、S 参数、WR-90 或波导时使用。
+  Drive local Ansys HFSS: solve, sweep, and optimize. Use when the user
+  mentions HFSS, Electronics Desktop, an .aedt file, S-parameters, WR-90,
+  or a waveguide.
 ---
 
 # HFSS
 
-工作目录是 `S:\Work\Grok Work\1113`。命令用 `.venv\Scripts\python.exe -m sim_plugin`。若已有 `hfss_doctor`、`hfss_validate`、`hfss_prepare`、`hfss_run`、`hfss_sweep`、`hfss_optimize`、`hfss_advise`，优先用这些工具。
+The working directory is the plugin root, the folder that contains `pyproject.toml`. On Windows the command is `.venv\Scripts\python.exe -m sim_plugin`. If `hfss_doctor`, `hfss_validate`, `hfss_prepare`, `hfss_run`, `hfss_sweep`, `hfss_optimize`, and `hfss_advise` are already available, call those tools.
 
-长度用米，频率用赫兹。S21 用 `dB(S(P2,P1))` 和 `goal: max`。S11 用 `dB(S(P1,P1))` 和 `goal: min`。
+Lengths are metres and frequency is hertz. For S21 use `dB(S(P2,P1))` and `goal: max`. For S11 use `dB(S(P1,P1))` and `goal: min`.
 
-先 `hfss doctor`。端口 `1055@localhost` 不通时不要启动求解。`hfss run` 求解一份规格。`hfss sweep` 对一个参数比较 2 到 8 个值。`hfss optimize` 对一个数值路径做最多 8 次粗到细搜索。求解后用 `hfss advise` 取事实，再写成建议。
+Call `hfss doctor` first. If port `1055@localhost` is closed, do not start a solve. `hfss run` solves one spec. `hfss sweep` compares 2 to 8 values of one parameter. `hfss optimize` searches one numeric path, at most 8 times. After a solve, call `hfss advise` and write the advice from those facts.
 
-WR-90 例子是 `S:\simulation\FDTD\ai\hfss-aedt\examples\wr90.json`。10 GHz、长度 0.03 m 时 S21 为 0.0 dB，S11 为 -64.084 dB。长度搜索例子是 `hfss\examples\wr90_length_optimize.json`。
+The WR-90 example is `hfss/examples/wr90.json`. At 10 GHz and a length of 0.03 m, S21 is 0.0 dB and S11 is -64.084 dB. The length search example is `hfss/examples/wr90_length_optimize.json`. The length sweep example is `hfss/examples/wr90_length_sweep.json`.
 
-`best` 只表示已计算各次中的最好结果。最好点在区间端点时，说明扩大区间可能还有更好的点。
+Point `HFSS_AEDT_PYTHON` at the Python executable of the hfss-aedt environment, and `HFSS_AEDT_SRC` at that checkout's `src` directory, when they are not already on this computer.
 
-不要打开或复制 `S:\simulation\HFSS\4mm.aedt`。不要关闭已经打开的 Electronics Desktop。
+`best` is only the best result among the computed runs. If it lies at an end of the interval, say that a wider interval may contain a better point.
+
+Do not close an Electronics Desktop window the user already has open. A source project is copied into `hfss/runs` before it is edited.

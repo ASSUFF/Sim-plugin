@@ -1,16 +1,17 @@
 ---
 name: fdtd-sim
 description: >
-  驱动本机 Ansys Lumerical FDTD。用户提到 Lumerical、lumapi、.fsp、波长、监视器或透射时使用。
-  本机若未安装求解器，doctor 会报未安装，此时不要尝试启动 FDTD。
+  Drive local Ansys Lumerical FDTD. Use when the user mentions Lumerical,
+  lumapi, an .fsp file, wavelength, a monitor, or transmission. If doctor
+  reports that the solver is not installed, do not try to launch it.
 ---
 
 # FDTD
 
-工作目录是 `S:\Work\Grok Work\1113`。命令用 `.venv\Scripts\python.exe -m sim_plugin`。若已有 `fdtd_doctor`、`fdtd_validate`、`fdtd_prepare`、`fdtd_run`、`fdtd_sweep`、`fdtd_optimize`、`fdtd_advise`，优先用这些工具。
+The working directory is the plugin root, the folder that contains `pyproject.toml`. On Windows the command is `.venv\Scripts\python.exe -m sim_plugin`. If `fdtd_doctor`, `fdtd_validate`, `fdtd_prepare`, `fdtd_run`, `fdtd_sweep`, `fdtd_optimize`, and `fdtd_advise` are already available, call those tools.
 
-长度用米，时间用秒。先 `fdtd doctor`。`installed` 不是 true 时停止，不要调用 `run`、`sweep` 或 `optimize`。
+Lengths are metres and times are seconds. Call `fdtd doctor` first. If `installed` is not true, stop. Do not call `run`, `sweep`, or `optimize`. Set `LUMERICAL_ROOT` when the version directory is not found automatically. It must contain `api/python/lumapi.py`.
 
-规格例子在 `fdtd/examples`。`sweep` 对一个对象属性取 2 到 8 个值。`optimize` 最多 8 次。透射用 `goal: max`。求解后用 `fdtd advise` 取事实再写建议。`best` 只表示已计算各次中的最好结果。
+Examples are in `fdtd/examples`. `sweep` takes 2 to 8 values of one object property. `optimize` runs at most 8 times. Use `goal: max` for transmission. After a solve, call `fdtd advise` and write the advice from those facts. `best` is only the best result among the computed runs. If it lies at an end of the interval, say that a wider interval may contain a better point.
 
-源 `.fsp` 先复制到 `fdtd/runs`。不要覆盖用户原来的工程。
+Copy a source `.fsp` into `fdtd/runs` before editing it. Do not overwrite the user's original project.

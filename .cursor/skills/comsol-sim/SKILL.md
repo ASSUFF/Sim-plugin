@@ -1,41 +1,40 @@
 ---
 name: comsol-sim
 description: >
-  驱动本机 COMSOL 6.4 建立模型、求解、扫描和寻优。用户提到 COMSOL、.mph、
-  传热、参数扫描、寻优、仿真建议，或要求根据描述生成仿真时使用。
+  Drive the local COMSOL installation: build a model, solve, sweep, and
+  optimize. Use when the user mentions COMSOL, an .mph file, heat transfer,
+  a parameter sweep, optimization, or simulation advice.
 ---
 
 # COMSOL
 
-工作目录是 `S:\Work\Grok Work\1113`。命令用 `.venv\Scripts\python.exe -m sim_plugin`。若当前会话已经有 `comsol_doctor`、`comsol_search`、`comsol_validate`、`comsol_run`、`comsol_sweep`、`comsol_optimize`、`comsol_advise`，优先调用这些工具，参数与下面的命令相同。
+The working directory is the plugin root, the folder that contains `pyproject.toml`. On Windows the command is `.venv\Scripts\python.exe -m sim_plugin`. If `comsol_doctor`, `comsol_search`, `comsol_validate`, `comsol_run`, `comsol_sweep`, `comsol_optimize`, and `comsol_advise` are already available, call those tools. Their arguments match the commands below.
 
-HFSS 和 FDTD 不在这些命令里。那两个软件仍用 `S:\simulation\FDTD\ai` 的旧插件。
+## New model
 
-## 新模型
+1. Call `comsol doctor`. Stop when no installation is found.
+2. Before writing Java, use `comsol search KEYWORD` for `create` type names. Use the returned `create_type`. A hash in the completion data is not a Java property name.
+3. The Java file has one public class, and the class name matches the file name. Call `ModelUtil.initStandalone`. A swept parameter is `model.param().set("name", "value-with-unit")`. After the solve, print one line `===RESULT===`, then one `name=number` per line. Call `model.save`. Do not use `Runtime.getRuntime`, `ProcessBuilder`, or reflection.
+4. Run `comsol validate --java FILE --spec SPEC.json`. Fix the script when `errors` is not empty.
+5. Run `comsol run`. Values in `parameters.*.value` are written into the run copy. The source file the user supplied stays unchanged.
 
-1. 调用 `comsol doctor`。没有找到安装时停止。
-2. 写 Java 前，用 `comsol search 关键词` 查 `create` 的类型名。使用返回的 `create_type`，不要凭记忆编造。completion 里的属性散列不是 Java 属性名。
-3. Java 只能有一个 public class，类名与文件名相同。调用 `ModelUtil.initStandalone`。可扫描参数写成 `model.param().set("名字", "带单位的值")`。求解后先打印一行 `===RESULT===`，再按行打印 `名字=数值`。调用 `model.save`。不要使用 `Runtime.getRuntime`、`ProcessBuilder` 或反射。
-4. 用 `comsol validate --java 文件 --spec 规格.json`。有 errors 时先改脚本。
-5. 用 `comsol run` 求解。规格里的 `parameters.*.value` 会写进运行副本，不改用户给出的源文件。
+The steady plate example is `comsol/examples/SteadyHeat.java`. `T_cold` is on the left, `T_hot` is on the right, and the other two edges are insulated. With a constant conductivity the area-average temperature is the arithmetic mean. For `T_cold=300[K]` and `T_hot=400[K]`, `T_avg_K` is 350, `T_max_K` is 400, and `T_min_K` is 300.
 
-稳态方板例子是 `comsol/examples/SteadyHeat.java`。左边 `T_cold`，右边 `T_hot`，另外两边绝热。恒定导热系数下，面积平均温度是两者的算术平均。`T_cold=300[K]`、`T_hot=400[K]` 时，`T_avg_K` 为 350，`T_max_K` 为 400，`T_min_K` 为 300。
+The optical-heating example is `comsol/examples/OptoHeat.java`.
 
-光学加热例子是 `comsol/examples/OptoHeat.java`。它同时建立 `RadiativeBeamInAbsorbingMedia` 和 `HeatTransfer`，并用 `HeatTransferWithRadiativeBeamInAbsorbingMedia` 把吸收功率送进传热。默认参数下最高温度应约为 307.794 K，误差远小于 0.01 K。入射强度特征的 `beamProfile` 用 `userdef`，束流方向 `e` 是长度为 3 的矢量。
+## Sweep and optimize
 
-## 扫描和寻优
+- `comsol sweep` runs every combination in `sweep`. Each parameter has 2 to 8 values, and the total number of combinations is at most 8.
+- `comsol optimize` searches one parameter from coarse to fine. `optimize.max_runs` is 2 to 8.
+- The goal value is numeric. `goal.sense` is `min` or `max`.
+- Tell the user that `best` is only the best computed run. Include `note` when it is present. If the best point is at an end of the interval, say that a wider interval may contain a better point.
 
-- `comsol sweep` 计算规格 `sweep` 里的全部组合。每个参数 2 到 8 个取值，组合总数不超过 8。
-- `comsol optimize` 对一个参数做粗到细搜索。`optimize.max_runs` 为 2 到 8。先取区间两端和中点，再在当前最好点与相邻点的中点继续算。
-- 目标导出值必须是纯数字。`goal.sense` 为 `min` 或 `max`。
-- 向用户说明 `best` 只是已计算各次中的最好结果。返回里若有 `note`，要带到回答中。
+## Advice
 
-## 建议
+After a solve, sweep, or search, call `comsol advise --report REPORT.json`. Write the advice from `facts`. A single solve is not an optimum.
 
-求解、扫描或寻优之后，对报告调用 `comsol advise --report 报告.json`。用返回的 `facts` 写建议，不要另造网格、收敛或许可证状态。事实说最好点在区间端点时，告诉用户扩大区间可能还有更好的点。单次求解的事实不能说成最优解。
+## Do not
 
-## 不要做
-
-- 不覆盖 `S:\COMSOL\Cursor` 里的模型，也不把运行目录指到那里。
-- 不关闭用户已经打开的 COMSOL。
-- 扫描或寻优超过 8 次时，先停下来，让用户决定是否提高上限。插件当前会直接拒绝。
+- Do not write run directories into the user's other project folders.
+- Do not close a COMSOL window the user already has open.
+- Above 8 runs, stop and let the user decide. The plugin rejects the spec before launching COMSOL.
