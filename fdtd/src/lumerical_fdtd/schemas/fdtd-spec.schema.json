@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lumerical-fdtd/fdtd-spec.schema.json",
+  "title": "Lumerical FDTD simulation spec",
+  "description": "Units are SI. Lengths and wavelengths are metres. simulation time is seconds. Property names match the Lumerical GUI; underscores are converted to spaces. The GUI stays hidden unless hide_gui is false. A source project is copied into the runs directory and is not overwritten. transmission exports pass only the monitor name; with more than one source, Lumerical normalizes that result to the total source power.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "hide_gui": {"type": "boolean", "default": true},
+    "setup_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Save the project and do not launch the solver."
+    },
+    "project": {
+      "type": "string",
+      "description": "Existing .fsp to open. Omit to create a new simulation."
+    },
+    "run_root": {
+      "type": "string",
+      "description": "Directory that receives runs/<timestamp>_<name>/. Overrides LUMERICAL_FDTD_RUNS."
+    },
+    "global_source": {
+      "type": "object",
+      "description": "Arguments to setglobalsource. Wavelengths are metres.",
+      "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+    },
+    "simulation": {
+      "type": "object",
+      "description": "Properties of the FDTD region. Created when project is omitted. Examples: dimension, x span, mesh accuracy, simulation time, x min bc."
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["op"],
+        "additionalProperties": true,
+        "properties": {
+          "op": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+            "description": "Lumerical constructor such as addrect, addmode, addpower, addprofile, or addmesh."
+          },
+          "properties": {"type": "object"}
+        }
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "description": "setnamed calls for objects already in the project.",
+      "items": {
+        "type": "object",
+        "required": ["object", "property", "value"],
+        "properties": {
+          "object": {"type": "string"},
+          "property": {"type": "string"},
+          "value": {},
+          "index": {"type": "integer"}
+        }
+      }
+    },
+    "script": {"type": "string", "description": "Lumerical script evaluated after the structured fields."},
+    "script_file": {
+      "type": "string",
+      "description": "Script file. Relative paths are resolved next to the spec file on the CLI. fdtd_run requires an existing absolute path."
+    },
+    "exports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["monitor"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "kind": {"enum": ["transmission", "result"]},
+          "source": {
+            "type": "string",
+            "description": "Recorded for the caller. The solver transmission function in this plugin receives only the monitor name."
+          },
+          "monitor": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "result": {"type": "string", "description": "getresult dataset, default T."}
+        }
+      }
+    }
+  }
+}
