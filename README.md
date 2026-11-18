@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-18. Version `v0.1.1118.3`.
+Updated 2026-11-18. Version `v0.1.1118.4`.
 
-The version has four parts, for example `v0.1.1118.3`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.1.1118.4`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -71,6 +71,8 @@ If they are unset, the plugin tries the checkout used during development. Set bo
 | Pick the best computed point | `best` from a sweep, and `optimize` | `optimize`, at most 8 runs | `optimize`, at most 8 runs |
 | Facts for advice | `comsol advise` | `hfss advise` | `fdtd advise` |
 | Build a model | look up API names, write Java, validate, compile, and batch-run | describe a waveguide in JSON | describe geometry, sources, and monitors in JSON |
+
+An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` before it is opened. The original file is left unchanged. `inspect` does not solve. `set` writes the changes only to the copy. To solve an existing COMSOL model, use `run --project` and put the study tag, such as `std1`, in `study`. HFSS `inspect` returns objects and solution setups, not design variables; put the values to change in `variables`.
 
 Results are JSON. The process exits with code 1 when `ok` is false. `best` means the best result among the runs that were computed. When that point is at the end of the interval, a wider interval may contain a better point. The advice text is written by the current AI from the `advise` facts.
 
