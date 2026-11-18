@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sim-plugin"
+version = "0.1.1118"
+description = "AI-facing local drivers for COMSOL, HFSS, and Lumerical FDTD"
+readme = "使用说明.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["mcp>=1.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "jsonschema>=4.18"]
+
+[project.scripts]
+sim-plugin = "sim_plugin.cli:main"
+sim-plugin-mcp = "sim_plugin.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src", "comsol/src", "hfss/src", "fdtd/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["comsol/tests", "hfss/tests", "fdtd/tests"]
+
+[tool.setuptools.package-data]
+lumerical_fdtd = ["schemas/*.json"]
