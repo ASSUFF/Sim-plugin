@@ -1,0 +1,6 @@
+This project is not affiliated with Ansys, Inc.
+
+Ansys, Lumerical, and FDTD Solutions are trademarks of Ansys, Inc.
+This package does not include Lumerical, lumapi.py, a solver binary, or a
+license. Each user must install Ansys Lumerical separately and comply with
+the Ansys license agreement.
