@@ -11,19 +11,24 @@ from comsol_plugin.advise import advise
 from comsol_plugin.batch import run_java
 from comsol_plugin.discover import doctor
 from comsol_plugin.search import search_features
+from comsol_plugin.project import inspect_mph, set_mph
 from comsol_plugin.study import run_optimize, run_sweep
 from comsol_plugin.validate import validate_job
 from hfss_plugin.advise import advise as hfss_advise
 from hfss_plugin.backend import doctor as hfss_doctor
 from hfss_plugin.backend import prepare as hfss_prepare
+from hfss_plugin.backend import inspect as hfss_inspect
 from hfss_plugin.backend import run as hfss_run
+from hfss_plugin.backend import set_project as hfss_set
 from hfss_plugin.backend import sweep as hfss_sweep
 from hfss_plugin.backend import validate as hfss_validate
 from hfss_plugin.optimize import optimize as hfss_optimize
 from fdtd_plugin.advise import advise as fdtd_advise
 from fdtd_plugin.backend import doctor as fdtd_doctor
 from fdtd_plugin.backend import prepare as fdtd_prepare
+from fdtd_plugin.backend import inspect as fdtd_inspect
 from fdtd_plugin.backend import run as fdtd_run
+from fdtd_plugin.backend import set_project as fdtd_set
 from fdtd_plugin.backend import sweep as fdtd_sweep
 from fdtd_plugin.backend import validate as fdtd_validate
 from fdtd_plugin.optimize import optimize as fdtd_optimize
@@ -65,8 +70,14 @@ def main(argv: list[str] | None = None) -> int:
     validate.add_argument("--java", required=True)
     validate.add_argument("--spec")
 
-    run = commands.add_parser("run", help="Validate, compile, and batch-run a Java model")
-    run.add_argument("--java", required=True)
+    owned = commands.add_parser("inspect", help="List parameters in an existing .mph without solving")
+    owned.add_argument("--project", required=True)
+    owned_set = commands.add_parser("set", help="Change parameters in a copy of an existing .mph")
+    owned_set.add_argument("--project", required=True)
+    owned_set.add_argument("--spec", required=True)
+    run = commands.add_parser("run", help="Compile a Java model, or solve a copy of an existing .mph")
+    run.add_argument("--java")
+    run.add_argument("--project")
     run.add_argument("--spec")
     run.add_argument("--stoptime", type=int, default=600)
 
@@ -86,6 +97,11 @@ def main(argv: list[str] | None = None) -> int:
     hfss = solvers.add_parser("hfss")
     hfss_commands = hfss.add_subparsers(dest="command", required=True)
     hfss_commands.add_parser("doctor", help="Report the HFSS install without launching it")
+    hfss_inspect_cmd = hfss_commands.add_parser("inspect", help="List objects in a copy of an existing .aedt")
+    hfss_inspect_cmd.add_argument("--project", required=True)
+    hfss_set_cmd = hfss_commands.add_parser("set", help="Write variables into a copy of an existing .aedt")
+    hfss_set_cmd.add_argument("--project", required=True)
+    hfss_set_cmd.add_argument("--spec", required=True)
     hfss_validate_cmd = hfss_commands.add_parser("validate", help="Check an HFSS spec without a license")
     hfss_validate_cmd.add_argument("--spec", required=True)
     hfss_prepare_cmd = hfss_commands.add_parser("prepare", help="Fill missing HFSS settings without launching it")
@@ -102,6 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     fdtd = solvers.add_parser("fdtd")
     fdtd_commands = fdtd.add_subparsers(dest="command", required=True)
     fdtd_commands.add_parser("doctor", help="Report whether Lumerical FDTD is installed")
+    fdtd_inspect_cmd = fdtd_commands.add_parser("inspect", help="List objects in a copy of an existing .fsp")
+    fdtd_inspect_cmd.add_argument("--project", required=True)
+    fdtd_set_cmd = fdtd_commands.add_parser("set", help="Apply overrides to a copy of an existing .fsp")
+    fdtd_set_cmd.add_argument("--project", required=True)
+    fdtd_set_cmd.add_argument("--spec", required=True)
     for _name, _help in (
         ("validate", "Check an FDTD spec without the solver"),
         ("prepare", "Fill missing FDTD settings without the solver"),
@@ -120,6 +141,14 @@ def main(argv: list[str] | None = None) -> int:
             return _print(hfss_doctor())
         if args.command == "advise":
             return _print(hfss_advise(args.report))
+        if args.command == "inspect":
+            return _print(hfss_inspect(args.project))
+        if args.command == "set":
+            spec = _read_json(args.spec)
+            if spec.get("ok") is False and "error" in spec:
+                return _print(spec)
+            spec["project"] = args.project
+            return _print(hfss_set(spec))
         spec = _read_json(args.spec)
         if isinstance(spec, dict) and spec.get("ok") is False:
             return _print(spec)
@@ -139,6 +168,14 @@ def main(argv: list[str] | None = None) -> int:
             return _print(fdtd_doctor())
         if args.command == "advise":
             return _print(fdtd_advise(args.report))
+        if args.command == "inspect":
+            return _print(fdtd_inspect(args.project))
+        if args.command == "set":
+            spec = _read_json(args.spec)
+            if spec.get("ok") is False and "error" in spec:
+                return _print(spec)
+            spec["project"] = args.project
+            return _print(fdtd_set(spec))
         spec = _read_json(args.spec)
         if isinstance(spec, dict) and spec.get("ok") is False:
             return _print(spec)
@@ -159,9 +196,31 @@ def main(argv: list[str] | None = None) -> int:
         return _print(doctor())
     if args.command == "search":
         return _print(search_features(args.keyword, limit=args.limit))
+    if args.command == "inspect":
+        return _print(inspect_mph(args.project))
+    if args.command == "set":
+        spec = _read_json(args.spec)
+        if spec.get("ok") is False and "error" in spec:
+            return _print(spec)
+        return _print(set_mph(args.project, spec.get("parameters") or {}, study=spec.get("study"), solve=False))
     if args.command == "validate":
         return _print(validate_job(args.java, args.spec))
+    if args.command == "run" and args.project:
+        spec = _read_json(args.spec) if args.spec else {}
+        if spec.get("ok") is False and "error" in spec:
+            return _print(spec)
+        return _print(
+            set_mph(
+                args.project,
+                spec.get("parameters") or {},
+                study=spec.get("study"),
+                solve=True,
+                runs_root=None,
+            )
+        )
     if args.command == "run":
+        if not args.java:
+            return _print({"ok": False, "launched_solver": False, "error": "run 需要 --java，或用 --project 指定已有的 .mph。"})
         return _print(run_java(args.java, args.spec, stoptime_s=args.stoptime))
     if args.command == "sweep":
         return _print(run_sweep(args.java, args.spec, stoptime_s=args.stoptime))

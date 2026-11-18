@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import shutil
 import socket
 import subprocess
 from datetime import datetime
@@ -168,6 +169,40 @@ def _protected_project(spec: dict) -> dict | None:
     }
 
 
+def inspect(project: str, *, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
+    """Open a copy of an existing .aedt and list its objects and setups. Does not solve."""
+    path = Path(project)
+    if not path.is_file():
+        return {"ok": False, "launched_solver": False, "solved": False, "error": f"找不到工程：{path}"}
+    if path.suffix.lower() != ".aedt":
+        return {"ok": False, "launched_solver": False, "solved": False, "error": "HFSS 已有工程需要是 .aedt 文件。"}
+    blocked = _protected_project({"project": str(path)})
+    if blocked:
+        blocked["solved"] = False
+        return blocked
+    folder = _runs_root() / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_inspect"
+    folder.mkdir(parents=True, exist_ok=True)
+    copy = folder / path.name
+    shutil.copy2(path, copy)
+    body = _call(["inspect", "--project", str(copy)], python=python, src=src, runner=runner)
+    body["solved"] = False
+    body["source"] = str(path.resolve())
+    body["project_copy"] = str(copy)
+    body["source_preserved"] = True
+    return body
+
+
+def set_project(spec: dict, *, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
+    """Copy an existing .aedt, write variables, and save the copy. Does not solve."""
+    if not isinstance(spec, dict) or not isinstance(spec.get("project"), str):
+        return {"ok": False, "launched_solver": False, "solved": False, "stage": "spec", "error": "set 需要 project，指向已有的 .aedt。"}
+    updated = dict(spec)
+    updated["setup_only"] = True
+    result = run(updated, python=python, src=src, runner=runner)
+    result["solved"] = False
+    return result
+
+
 def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, runner) -> dict:
     executable = Path(python) if python is not None else _backend_python()
     engine = _engine_path()
@@ -213,6 +248,54 @@ def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, r
     if not isinstance(body, dict):
         body = {"ok": False, "raw": body}
     body["launched_solver"] = bool(body.get("run_dir") or body.get("aedt") or body.get("points"))
+    return body
+
+
+def _call(args: list[str], *, python: Path | None, src: Path | None, runner) -> dict:
+    executable = Path(python) if python is not None else _backend_python()
+    engine = _engine_path()
+    if not executable.is_file():
+        return {"ok": False, "launched_solver": False, "solved": False, "error": f"没有找到 HFSS 后端解释器：{executable}"}
+    if not engine.is_file():
+        return {"ok": False, "launched_solver": False, "solved": False, "error": f"没有找到 HFSS 引擎：{engine}"}
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(_backend_src() if src is None else src) + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))
+    env.setdefault("ANSYSLMD_LICENSE_FILE", "1055@localhost")
+    completed = runner(
+        [str(executable), str(engine), *args],
+        input=None,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
+    )
+    return _parse_result(completed, "HFSS_RESULT ")
+
+
+def _parse_result(completed, marker: str) -> dict:
+    stdout = completed.stdout or ""
+    index = stdout.rfind(marker)
+    if index < 0:
+        return {
+            "ok": False,
+            "launched_solver": False,
+            "solved": False,
+            "returncode": completed.returncode,
+            "stdout": stdout[-2000:],
+            "stderr": (completed.stderr or "")[-2000:],
+            "error": "HFSS 后端没有返回 HFSS_RESULT。",
+        }
+    line = stdout[index + len(marker) :].strip().splitlines()[0]
+    try:
+        body = json.loads(line)
+    except json.JSONDecodeError:
+        return {"ok": False, "launched_solver": False, "solved": False, "error": "HFSS_RESULT 不是合法 JSON。", "raw": line[-2000:]}
+    if not isinstance(body, dict):
+        body = {"ok": False, "raw": body}
+    body["launched_solver"] = bool(body.get("run_dir") or body.get("aedt") or body.get("points") or body.get("model"))
     return body
 
 

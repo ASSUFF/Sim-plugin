@@ -63,6 +63,8 @@ If they are unset, the plugin tries the checkout used during development. Set bo
 |---|---|---|---|
 | See whether it is installed | `comsol doctor` | `hfss doctor` | `fdtd doctor` |
 | Check a spec without solving | `validate`, plus `search` | `validate`, plus `prepare` | `validate`, plus `prepare` |
+| Inspect an existing project | `comsol inspect --project model.mph` | `hfss inspect --project model.aedt` | `fdtd inspect --project model.fsp` |
+| Edit a copy of an existing project | `comsol set --project model.mph --spec changes.json` | `hfss set --project model.aedt --spec changes.json` | `fdtd set --project model.fsp --spec changes.json` |
 | Solve with given parameters | `comsol run` | `hfss run` | `fdtd run` |
 | Change parameters | edit `value` in the spec and run again | edit the spec and run again | edit the spec or `overrides` and run again |
 | Sweep | at most 8 combinations | 2–8 values of one parameter | 2–8 values of one object property |

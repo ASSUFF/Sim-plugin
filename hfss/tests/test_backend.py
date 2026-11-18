@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from hfss_plugin.advise import advise
-from hfss_plugin.backend import doctor, license_error, prepare, run, sweep, validate
+from hfss_plugin.backend import doctor, inspect, license_error, prepare, run, set_project, sweep, validate
 
 
 def _python(tmp_path: Path) -> Path:
@@ -71,6 +71,48 @@ def test_closed_license_port_is_reported() -> None:
     message = license_error("59999@127.0.0.1")
     assert message is not None
     assert "59999@127.0.0.1" in message
+
+
+def test_inspect_opens_a_copy_of_an_existing_project(tmp_path: Path, monkeypatch) -> None:
+    project = tmp_path / "model.aedt"
+    project.write_text("dummy", encoding="utf-8")
+    monkeypatch.setattr("hfss_plugin.backend._runs_root", lambda: tmp_path / "runs")
+    monkeypatch.setattr("hfss_plugin.backend._engine_path", lambda: tmp_path / "engine.py")
+    monkeypatch.setattr("hfss_plugin.backend._backend_python", lambda: tmp_path / "python.exe")
+    (tmp_path / "engine.py").write_text("", encoding="utf-8")
+    (tmp_path / "python.exe").write_text("", encoding="utf-8")
+    seen = {}
+
+    def runner(command, **kwargs):
+        seen["command"] = command
+        return SimpleNamespace(
+            returncode=0,
+            stdout='HFSS_RESULT {"ok": true, "model": {"objects": ["box"], "setups": ["Setup1"]}}\n',
+            stderr="",
+        )
+
+    result = inspect(str(project), runner=runner)
+    assert result["ok"] is True
+    assert result["solved"] is False
+    assert result["source_preserved"] is True
+    assert seen["command"][2] == "inspect"
+    opened = Path(seen["command"][4])
+    assert opened.is_file()
+    assert opened.resolve() != project.resolve()
+
+
+def test_set_project_does_not_solve(monkeypatch) -> None:
+    seen = {}
+
+    def fake_run(spec, **kwargs):
+        seen["spec"] = spec
+        return {"ok": True, "launched_solver": True}
+
+    monkeypatch.setattr("hfss_plugin.backend.run", fake_run)
+    result = set_project({"project": "model.aedt", "variables": {"L": "30mm"}})
+    assert result["solved"] is False
+    assert seen["spec"]["setup_only"] is True
+    assert seen["spec"]["variables"]["L"] == "30mm"
 
 
 def test_protected_project_is_refused(tmp_path: Path) -> None:

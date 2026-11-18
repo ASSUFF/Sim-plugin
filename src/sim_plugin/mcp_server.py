@@ -8,11 +8,14 @@ from comsol_plugin.advise import advise
 from comsol_plugin.batch import run_java
 from comsol_plugin.discover import doctor
 from comsol_plugin.search import search_features
+from comsol_plugin.project import inspect_mph, set_mph
 from comsol_plugin.study import run_optimize, run_sweep
 from comsol_plugin.validate import validate_job
 from hfss_plugin.backend import doctor as hfss_doctor_payload
 from hfss_plugin.backend import prepare as hfss_prepare_payload
+from hfss_plugin.backend import inspect as hfss_inspect_payload
 from hfss_plugin.backend import run as hfss_run_payload
+from hfss_plugin.backend import set_project as hfss_set_payload
 from hfss_plugin.advise import advise as hfss_advise_payload
 from hfss_plugin.backend import sweep as hfss_sweep_payload
 from hfss_plugin.backend import validate as hfss_validate_payload
@@ -20,7 +23,9 @@ from hfss_plugin.optimize import optimize as hfss_optimize_payload
 from fdtd_plugin.advise import advise as fdtd_advise_payload
 from fdtd_plugin.backend import doctor as fdtd_doctor_payload
 from fdtd_plugin.backend import prepare as fdtd_prepare_payload
+from fdtd_plugin.backend import inspect as fdtd_inspect_payload
 from fdtd_plugin.backend import run as fdtd_run_payload
+from fdtd_plugin.backend import set_project as fdtd_set_payload
 from fdtd_plugin.backend import sweep as fdtd_sweep_payload
 from fdtd_plugin.backend import validate as fdtd_validate_payload
 from fdtd_plugin.optimize import optimize as fdtd_optimize_payload
@@ -53,6 +58,21 @@ def comsol_search(keyword: str, limit: int = 20) -> str:
 def comsol_validate(java: str, spec: str = "") -> str:
     """Check a COMSOL Java model and optional JSON spec without compiling."""
     return _json(validate_job(java, spec or None))
+
+
+@mcp.tool()
+def comsol_inspect(project: str) -> str:
+    """List parameters in an existing .mph file. Opens COMSOL but does not solve."""
+    return _json(inspect_mph(project))
+
+
+@mcp.tool()
+def comsol_set(project: str, spec_json: str) -> str:
+    """Change parameters in a copy of an existing .mph. Does not solve."""
+    spec = _load_object(spec_json)
+    if spec.get("ok") is False:
+        return _json(spec)
+    return _json(set_mph(project, spec.get("parameters") or {}, study=spec.get("study"), solve=False))
 
 
 @mcp.tool()
@@ -106,6 +126,22 @@ def hfss_prepare(spec_json: str) -> str:
 
 
 @mcp.tool()
+def hfss_inspect(project: str) -> str:
+    """List objects and setups in a copy of an existing .aedt. Does not solve."""
+    return _json(hfss_inspect_payload(project))
+
+
+@mcp.tool()
+def hfss_set(project: str, spec_json: str) -> str:
+    """Write variables into a copy of an existing .aedt. Does not solve."""
+    spec = _load_object(spec_json)
+    if spec.get("ok") is False:
+        return _json(spec)
+    spec["project"] = project
+    return _json(hfss_set_payload(spec))
+
+
+@mcp.tool()
 def hfss_run(spec_json: str) -> str:
     """Solve an HFSS spec. This launches Electronics Desktop in the background."""
     try:
@@ -141,6 +177,16 @@ def hfss_advise(report: str) -> str:
     return _json(hfss_advise_payload(report))
 
 
+def _load_object(text: str) -> dict:
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return {"ok": False, "launched_solver": False, "solved": False, "error": str(exc)}
+    if not isinstance(value, dict):
+        return {"ok": False, "launched_solver": False, "solved": False, "error": "规格的顶层需要是 JSON 对象。"}
+    return value
+
+
 def _load(text: str) -> dict | None:
     try:
         value = json.loads(text)
@@ -173,6 +219,22 @@ def fdtd_prepare(spec_json: str) -> str:
     if spec.get("ok") is False and "error" in spec and "errors" not in spec:
         return _json(spec)
     return _json(fdtd_prepare_payload(spec))
+
+
+@mcp.tool()
+def fdtd_inspect(project: str) -> str:
+    """List objects in a copy of an existing .fsp. Does not solve."""
+    return _json(fdtd_inspect_payload(project))
+
+
+@mcp.tool()
+def fdtd_set(project: str, spec_json: str) -> str:
+    """Apply overrides to a copy of an existing .fsp. Does not solve."""
+    spec = _load_object(spec_json)
+    if spec.get("ok") is False:
+        return _json(spec)
+    spec["project"] = project
+    return _json(fdtd_set_payload(spec))
 
 
 @mcp.tool()
