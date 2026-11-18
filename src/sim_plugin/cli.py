@@ -32,6 +32,7 @@ from fdtd_plugin.backend import set_project as fdtd_set
 from fdtd_plugin.backend import sweep as fdtd_sweep
 from fdtd_plugin.backend import validate as fdtd_validate
 from fdtd_plugin.optimize import optimize as fdtd_optimize
+from sim_plugin.confirm import confirm, rejection
 
 
 def _read_json(path: str) -> dict:
@@ -93,6 +94,8 @@ def main(argv: list[str] | None = None) -> int:
 
     advice = commands.add_parser("advise", help="Read a report and list facts for the AI to explain")
     advice.add_argument("--report", required=True)
+    confirm_cmd = commands.add_parser("confirm", help="Stamp a spec after its checklist is complete. Does not launch COMSOL")
+    confirm_cmd.add_argument("--spec", required=True)
 
     hfss = solvers.add_parser("hfss")
     hfss_commands = hfss.add_subparsers(dest="command", required=True)
@@ -114,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
     hfss_optimize_cmd.add_argument("--spec", required=True)
     hfss_advice = hfss_commands.add_parser("advise", help="Read an HFSS report and list facts")
     hfss_advice.add_argument("--report", required=True)
+    hfss_confirm = hfss_commands.add_parser("confirm", help="Stamp an HFSS spec. Does not launch Electronics Desktop")
+    hfss_confirm.add_argument("--spec", required=True)
 
     fdtd = solvers.add_parser("fdtd")
     fdtd_commands = fdtd.add_subparsers(dest="command", required=True)
@@ -134,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
         _cmd.add_argument("--spec", required=True)
     fdtd_advice = fdtd_commands.add_parser("advise", help="Read an FDTD report and list facts")
     fdtd_advice.add_argument("--report", required=True)
+    fdtd_confirm = fdtd_commands.add_parser("confirm", help="Stamp an FDTD spec. Does not launch Lumerical")
+    fdtd_confirm.add_argument("--spec", required=True)
 
     args = parser.parse_args(argv)
     if args.solver == "hfss":
@@ -141,6 +148,11 @@ def main(argv: list[str] | None = None) -> int:
             return _print(hfss_doctor())
         if args.command == "advise":
             return _print(hfss_advise(args.report))
+        if args.command == "confirm":
+            spec = _read_json(args.spec)
+            if spec.get("ok") is False and "error" in spec and "stage" not in spec:
+                return _print(spec)
+            return _print(confirm(spec))
         if args.command == "inspect":
             return _print(hfss_inspect(args.project))
         if args.command == "set":
@@ -168,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
             return _print(fdtd_doctor())
         if args.command == "advise":
             return _print(fdtd_advise(args.report))
+        if args.command == "confirm":
+            spec = _read_json(args.spec)
+            if spec.get("ok") is False and "error" in spec and "stage" not in spec:
+                return _print(spec)
+            return _print(confirm(spec))
         if args.command == "inspect":
             return _print(fdtd_inspect(args.project))
         if args.command == "set":
@@ -209,6 +226,9 @@ def main(argv: list[str] | None = None) -> int:
         spec = _read_json(args.spec) if args.spec else {}
         if spec.get("ok") is False and "error" in spec:
             return _print(spec)
+        rejected = rejection(spec)
+        if rejected:
+            return _print(rejected)
         return _print(
             set_mph(
                 args.project,
@@ -221,11 +241,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         if not args.java:
             return _print({"ok": False, "launched_solver": False, "error": "run 需要 --java，或用 --project 指定已有的 .mph。"})
-        return _print(run_java(args.java, args.spec, stoptime_s=args.stoptime))
+        return _print(run_java(args.java, args.spec, stoptime_s=args.stoptime, check_confirmation=True))
     if args.command == "sweep":
         return _print(run_sweep(args.java, args.spec, stoptime_s=args.stoptime))
     if args.command == "optimize":
         return _print(run_optimize(args.java, args.spec, stoptime_s=args.stoptime))
     if args.command == "advise":
         return _print(advise(args.report))
+    if args.command == "confirm":
+        spec = _read_json(args.spec)
+        if spec.get("ok") is False and "error" in spec and "stage" not in spec:
+            return _print(spec)
+        return _print(confirm(spec))
     return _print({"ok": False, "error": "未知命令。"})

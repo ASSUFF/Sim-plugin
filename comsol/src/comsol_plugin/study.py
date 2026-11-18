@@ -11,6 +11,7 @@ from pathlib import Path
 
 from comsol_plugin.batch import run_java
 from comsol_plugin.validate import validate_job
+from sim_plugin.confirm import rejection
 
 MAX_RUNS = 8
 
@@ -67,6 +68,10 @@ def _evaluate(java, spec, *, kind, stoptime_s, runs_root, install_root, runner) 
         return _spec_error(f"规格不是合法 JSON：{exc.lineno} 行。")
     if not isinstance(spec_data, dict):
         return _spec_error("规格的顶层需要是 JSON 对象。")
+    if runner is None:
+        rejected = rejection(spec_data)
+        if rejected:
+            return rejected
     goal = spec_data.get("goal")
     if not isinstance(goal, dict) or goal.get("sense") not in ("min", "max"):
         return _spec_error("扫描和寻优都需要 goal.sense 为 min 或 max。")

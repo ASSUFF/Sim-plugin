@@ -29,6 +29,7 @@ from fdtd_plugin.backend import set_project as fdtd_set_payload
 from fdtd_plugin.backend import sweep as fdtd_sweep_payload
 from fdtd_plugin.backend import validate as fdtd_validate_payload
 from fdtd_plugin.optimize import optimize as fdtd_optimize_payload
+from sim_plugin.confirm import confirm as confirm_spec
 
 try:
     from mcp.server.mcpserver import MCPServer as Server
@@ -78,7 +79,16 @@ def comsol_set(project: str, spec_json: str) -> str:
 @mcp.tool()
 def comsol_run(java: str, spec: str = "", stoptime: int = 600) -> str:
     """Compile and batch-run a COMSOL Java model. This launches COMSOL."""
-    return _json(run_java(java, spec or None, stoptime_s=stoptime))
+    return _json(run_java(java, spec or None, stoptime_s=stoptime, check_confirmation=True))
+
+
+@mcp.tool()
+def comsol_confirm(spec_json: str) -> str:
+    """Check a COMSOL checklist and return the spec run accepts. Does not launch COMSOL."""
+    spec = _load_object(spec_json)
+    if spec.get("ok") is False and "confirmation" not in spec:
+        return _json(spec)
+    return _json(confirm_spec(spec))
 
 
 @mcp.tool()
@@ -177,6 +187,15 @@ def hfss_advise(report: str) -> str:
     return _json(hfss_advise_payload(report))
 
 
+@mcp.tool()
+def hfss_confirm(spec_json: str) -> str:
+    """Check an HFSS checklist and return the spec run accepts. Does not launch HFSS."""
+    spec = _load_object(spec_json)
+    if spec.get("ok") is False and "confirmation" not in spec:
+        return _json(spec)
+    return _json(confirm_spec(spec))
+
+
 def _load_object(text: str) -> dict:
     try:
         value = json.loads(text)
@@ -268,6 +287,15 @@ def fdtd_optimize(study_json: str) -> str:
 def fdtd_advise(report: str) -> str:
     """List monitor facts from an FDTD report. Does not launch the solver."""
     return _json(fdtd_advise_payload(report))
+
+
+@mcp.tool()
+def fdtd_confirm(spec_json: str) -> str:
+    """Check an FDTD checklist and return the spec run accepts. Does not launch Lumerical."""
+    spec = _load(spec_json)
+    if spec.get("ok") is False and "confirmation" not in spec and "errors" not in spec:
+        return _json(spec)
+    return _json(confirm_spec(spec))
 
 
 def main() -> None:

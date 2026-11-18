@@ -12,10 +12,16 @@ def _python(tmp_path: Path) -> Path:
     return exe
 
 
-def test_missing_backend_python_does_not_launch(tmp_path: Path) -> None:
+def test_missing_backend_python_does_not_launch(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("HFSS_AEDT_PYTHON", raising=False)
+    monkeypatch.delenv("HFSS_AEDT_SRC", raising=False)
     result = doctor(python=tmp_path / "missing.exe")
     assert result["ok"] is False
     assert result["launched_solver"] is False
+    assert result["stage"] == "backend"
+    assert "HFSS_AEDT_PYTHON" in result["error"]
+    assert "HFSS_AEDT_SRC" in result["error"]
+    assert "simulation" not in result["error"]
 
 
 def test_doctor_reads_backend_json(tmp_path: Path) -> None:
@@ -46,7 +52,14 @@ def test_prepare_sends_spec_on_stdin(tmp_path: Path) -> None:
     assert result["assumptions"] == ["frequency=10 GHz"]
 
 
+def _engine_file(tmp_path: Path) -> None:
+    engine = tmp_path / "hfss_aedt" / "engine.py"
+    engine.parent.mkdir(parents=True, exist_ok=True)
+    engine.write_text("", encoding="utf-8")
+
+
 def test_run_parses_hfss_result_and_validates_first(tmp_path: Path) -> None:
+    _engine_file(tmp_path)
     calls: list[list[str]] = []
 
     def runner(command, **kwargs):
@@ -77,8 +90,9 @@ def test_inspect_opens_a_copy_of_an_existing_project(tmp_path: Path, monkeypatch
     project = tmp_path / "model.aedt"
     project.write_text("dummy", encoding="utf-8")
     monkeypatch.setattr("hfss_plugin.backend._runs_root", lambda: tmp_path / "runs")
-    monkeypatch.setattr("hfss_plugin.backend._engine_path", lambda: tmp_path / "engine.py")
+    monkeypatch.setattr("hfss_plugin.backend._engine_path", lambda source=None: tmp_path / "engine.py")
     monkeypatch.setattr("hfss_plugin.backend._backend_python", lambda: tmp_path / "python.exe")
+    monkeypatch.setattr("hfss_plugin.backend._backend_src", lambda: tmp_path)
     (tmp_path / "engine.py").write_text("", encoding="utf-8")
     (tmp_path / "python.exe").write_text("", encoding="utf-8")
     seen = {}
@@ -123,6 +137,7 @@ def test_protected_project_is_refused(tmp_path: Path) -> None:
 
 
 def test_sweep_publishes_comsol_rows_and_best(tmp_path: Path, monkeypatch) -> None:
+    _engine_file(tmp_path)
     monkeypatch.setattr("hfss_plugin.backend._runs_root", lambda: tmp_path)
     summary = tmp_path / "run02"
     summary.mkdir()
@@ -175,6 +190,7 @@ def test_sweep_publishes_comsol_rows_and_best(tmp_path: Path, monkeypatch) -> No
 
 
 def test_sweep_fills_s21_from_touchstone(tmp_path: Path, monkeypatch) -> None:
+    _engine_file(tmp_path)
     monkeypatch.setattr("hfss_plugin.backend._runs_root", lambda: tmp_path)
     run_dir = tmp_path / "solved"
     run_dir.mkdir()

@@ -1,8 +1,7 @@
 """Call an hfss-aedt checkout in its own environment.
 
-Set HFSS_AEDT_PYTHON and HFSS_AEDT_SRC to that checkout. When they are unset,
-the development-machine checkout is used if it is present. doctor, validate,
-and prepare do not launch Electronics Desktop.
+Set HFSS_AEDT_PYTHON and HFSS_AEDT_SRC to that checkout. There is no built-in
+path. doctor, validate, and prepare do not launch Electronics Desktop.
 """
 
 from __future__ import annotations
@@ -16,23 +15,47 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-_DEFAULT_BACKEND_PYTHON = Path(r"S:\simulation\FDTD\ai\em-sim\.venv\Scripts\python.exe")
-_DEFAULT_BACKEND_SRC = Path(r"S:\simulation\FDTD\ai\hfss-aedt\src")
+from sim_plugin.confirm import rejection, solver_payload
+
 _DEFAULT_PROTECTED_PROJECT = Path(r"S:\simulation\HFSS\4mm.aedt")
 
 
-def _backend_python() -> Path:
-    override = os.environ.get("HFSS_AEDT_PYTHON")
-    return Path(override) if override else _DEFAULT_BACKEND_PYTHON
+def _env_path(name: str) -> Path | None:
+    raw = os.environ.get(name)
+    return Path(raw) if raw else None
 
 
-def _backend_src() -> Path:
-    override = os.environ.get("HFSS_AEDT_SRC")
-    return Path(override) if override else _DEFAULT_BACKEND_SRC
+def _backend_python() -> Path | None:
+    return _env_path("HFSS_AEDT_PYTHON")
 
 
-def _engine_path() -> Path:
-    return _backend_src() / "hfss_aedt" / "engine.py"
+def _backend_src() -> Path | None:
+    return _env_path("HFSS_AEDT_SRC")
+
+
+def _engine_path(source: Path | None = None) -> Path | None:
+    folder = Path(source) if source is not None else _backend_src()
+    if folder is None:
+        return None
+    return folder / "hfss_aedt" / "engine.py"
+
+
+def _backend_message() -> str:
+    python = os.environ.get("HFSS_AEDT_PYTHON") or "未设置"
+    src = os.environ.get("HFSS_AEDT_SRC") or "未设置"
+    return (
+        "没有找到 HFSS 后端。"
+        f"HFSS_AEDT_PYTHON 是 hfss-aedt 所用环境的 python.exe，当前为 {python}。"
+        f"HFSS_AEDT_SRC 是含有 hfss_aedt 包的 src 目录，当前为 {src}。"
+    )
+
+
+def _backend_problem(executable: Path | None, engine: Path | None, *, need_engine: bool) -> dict | None:
+    python_ok = executable is not None and executable.is_file()
+    engine_ok = engine is not None and engine.is_file()
+    if python_ok and (engine_ok or not need_engine):
+        return None
+    return {"ok": False, "launched_solver": False, "stage": "backend", "error": _backend_message()}
 
 
 def _protected_project_path() -> Path:
@@ -92,10 +115,21 @@ def prepare(spec: dict, *, python: Path | None = None, src: Path | None = None, 
     return _invoke(_PREPARE, spec, python=python, src=src, runner=runner)
 
 
-def run(spec: dict, *, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
+def run(
+    spec: dict,
+    *,
+    python: Path | None = None,
+    src: Path | None = None,
+    runner=subprocess.run,
+    check_confirmation: bool = True,
+) -> dict:
     blocked = _protected_project(spec)
     if blocked:
         return blocked
+    if check_confirmation and runner is subprocess.run and not spec.get("setup_only"):
+        rejected = rejection(spec)
+        if rejected:
+            return rejected
     if runner is subprocess.run:
         license_message = license_error()
         if license_message:
@@ -113,6 +147,9 @@ def sweep(study: dict, *, python: Path | None = None, src: Path | None = None, r
     if blocked:
         return blocked
     if runner is subprocess.run:
+        rejected = rejection(study if isinstance(study, dict) else {})
+        if rejected:
+            return rejected
         license_message = license_error()
         if license_message:
             return {"ok": False, "launched_solver": False, "stage": "license", "error": license_message}
@@ -205,17 +242,17 @@ def set_project(spec: dict, *, python: Path | None = None, src: Path | None = No
 
 def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, runner) -> dict:
     executable = Path(python) if python is not None else _backend_python()
-    engine = _engine_path()
-    if not executable.is_file():
-        return {"ok": False, "launched_solver": False, "error": f"没有找到 HFSS 后端解释器：{executable}"}
-    if not engine.is_file():
-        return {"ok": False, "launched_solver": False, "error": f"没有找到 HFSS 引擎：{engine}"}
+    source = Path(src) if src is not None else _backend_src()
+    engine = _engine_path(source)
+    problem = _backend_problem(executable, engine, need_engine=True)
+    if problem:
+        return problem
     inbox = _runs_root() / "_inbox"
     inbox.mkdir(parents=True, exist_ok=True)
     spec_path = inbox / f"{action}.json"
-    spec_path.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+    spec_path.write_text(json.dumps(solver_payload(spec), ensure_ascii=False), encoding="utf-8")
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(_backend_src() if src is None else src) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
     env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))
     env.setdefault("ANSYSLMD_LICENSE_FILE", "1055@localhost")
     completed = runner(
@@ -253,13 +290,14 @@ def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, r
 
 def _call(args: list[str], *, python: Path | None, src: Path | None, runner) -> dict:
     executable = Path(python) if python is not None else _backend_python()
-    engine = _engine_path()
-    if not executable.is_file():
-        return {"ok": False, "launched_solver": False, "solved": False, "error": f"没有找到 HFSS 后端解释器：{executable}"}
-    if not engine.is_file():
-        return {"ok": False, "launched_solver": False, "solved": False, "error": f"没有找到 HFSS 引擎：{engine}"}
+    source = Path(src) if src is not None else _backend_src()
+    engine = _engine_path(source)
+    problem = _backend_problem(executable, engine, need_engine=True)
+    if problem:
+        problem["solved"] = False
+        return problem
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(_backend_src() if src is None else src) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
     env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))
     env.setdefault("ANSYSLMD_LICENSE_FILE", "1055@localhost")
     completed = runner(
@@ -302,18 +340,15 @@ def _parse_result(completed, marker: str) -> dict:
 def _invoke(script: str, payload: dict | None, *, python: Path | None, src: Path | None, runner) -> dict:
     executable = Path(python) if python is not None else _backend_python()
     source = Path(src) if src is not None else _backend_src()
-    if not executable.is_file():
-        return {
-            "ok": False,
-            "launched_solver": False,
-            "error": f"没有找到 HFSS 后端解释器：{executable}",
-        }
+    problem = _backend_problem(executable, None, need_engine=False)
+    if problem or source is None:
+        return problem or {"ok": False, "launched_solver": False, "stage": "backend", "error": _backend_message()}
     env = os.environ.copy()
     env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
     env.setdefault("HFSS_AEDT_RUNS", str(Path(__file__).resolve().parents[2] / "runs"))
     completed = runner(
         [str(executable), "-c", script],
-        input=None if payload is None else json.dumps(payload),
+        input=None if payload is None else json.dumps(solver_payload(payload)),
         capture_output=True,
         text=True,
         encoding="utf-8",

@@ -16,7 +16,71 @@
       "material": "vacuum"
     }
   },
-  "parameter": {"path": "geometry.length_m"},
-  "values": [0.02, 0.03, 0.04],
-  "metric": {"goal": "min", "key": "dB(S(P1,P1))"}
+  "parameter": {
+    "path": "geometry.length_m"
+  },
+  "values": [
+    0.02,
+    0.03,
+    0.04
+  ],
+  "metric": {
+    "goal": "min",
+    "key": "dB(S(P1,P1))"
+  },
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "10 GHz"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "WR-90 波导"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "长度 0.02、0.03、0.04 m"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "vacuum"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "最多 4 次自适应，max_delta_s 0.02"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "最多 4 次自适应"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "S 参数"
+      },
+      {
+        "name": "goal",
+        "source": "specified",
+        "value": "最小 dB(S(P1,P1))"
+      },
+      {
+        "name": "range",
+        "source": "specified",
+        "value": "长度 0.02 m 到 0.04 m"
+      },
+      {
+        "name": "limit",
+        "source": "specified",
+        "value": "3 个取值"
+      }
+    ],
+    "token": "8df2b12817982592fae2abbdee76158ee455fd1a2ff51a37af25c85ecde9553c"
+  }
 }

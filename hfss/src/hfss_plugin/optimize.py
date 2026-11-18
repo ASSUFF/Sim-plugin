@@ -25,12 +25,17 @@ def optimize(study: dict, *, runner=None, python=None, src=None) -> dict:
         return blocked
     use_real_runner = runner is None
     if use_real_runner:
+        from sim_plugin.confirm import rejection
+
+        rejected = rejection(study)
+        if rejected:
+            return rejected
         message = license_error()
         if message:
             return {"ok": False, "launched_solver": False, "stage": "license", "error": message}
 
     def evaluate(spec: dict) -> dict:
-        kwargs = {}
+        kwargs = {"check_confirmation": False}
         if runner is not None:
             kwargs["runner"] = runner
         if python is not None:

@@ -14,10 +14,21 @@ from pathlib import Path
 
 from comsol_plugin.discover import find_install
 from comsol_plugin.validate import validate_job
+from sim_plugin.confirm import rejection
 
 _DEFAULT_STOPTIME_S = 600
 _MAX_STOPTIME_S = 7200
 _PARAM_SET = re.compile(r'(param\(\)\.set\(\s*")([^"]+)("\s*,\s*")([^"]*)(")')
+
+
+def _confirmed(spec: str | Path | None) -> dict | None:
+    if spec is None:
+        return rejection({})
+    try:
+        data = json.loads(Path(spec).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return rejection({})
+    return rejection(data)
 
 
 def parse_results(stdout: str) -> dict[str, str]:
@@ -47,6 +58,7 @@ def run_java(
     stoptime_s: int = _DEFAULT_STOPTIME_S,
     install_root: str | Path | None = None,
     runner=subprocess.run,
+    check_confirmation: bool = False,
 ) -> dict:
     if not 1 <= stoptime_s <= _MAX_STOPTIME_S:
         return {
@@ -60,6 +72,10 @@ def run_java(
     if not checked["ok"]:
         checked["stage"] = "validate"
         return checked
+    if check_confirmation and runner is subprocess.run:
+        rejected = _confirmed(spec)
+        if rejected:
+            return rejected
 
     install = find_install(install_root)
     if not install.ok or install.comsolcompile is None or install.comsolbatch is None:

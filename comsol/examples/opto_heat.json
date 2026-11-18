@@ -1,13 +1,77 @@
 {
   "parameters": {
-    "L": {"value": "0.02[m]"},
-    "kappa": {"value": "50[1/m]"},
-    "I_beam": {"value": "1000[W/m^2]"},
-    "k_solid": {"value": "0.2[W/(m*K)]"},
-    "rho": {"value": "1000[kg/m^3]"},
-    "Cp": {"value": "1000[J/(kg*K)]"},
-    "T_amb": {"value": "300[K]"}
+    "L": {
+      "value": "0.02[m]"
+    },
+    "kappa": {
+      "value": "50[1/m]"
+    },
+    "I_beam": {
+      "value": "1000[W/m^2]"
+    },
+    "k_solid": {
+      "value": "0.2[W/(m*K)]"
+    },
+    "rho": {
+      "value": "1000[kg/m^3]"
+    },
+    "Cp": {
+      "value": "1000[J/(kg*K)]"
+    },
+    "T_amb": {
+      "value": "300[K]"
+    }
   },
-  "exports": ["T_max_K", "T_min_K", "T_max_expected_K", "T_max_error_K", "I_max", "I_min"],
-  "goal": {"expression": "T_max_error_K", "sense": "min"}
+  "exports": [
+    "T_max_K",
+    "T_min_K",
+    "T_max_expected_K",
+    "T_max_error_K",
+    "I_max",
+    "I_min"
+  ],
+  "goal": {
+    "expression": "T_max_error_K",
+    "sense": "min"
+  },
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "稳态光学加热，不使用射频"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "光束沿 x 进入吸收介质"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "见 OptoHeat.java"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "吸收系数 kappa，导热系数 k_solid"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "使用例子里的网格和求解设置"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "稳态求解"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "T_max_K、I_min 等导出量"
+      }
+    ],
+    "token": "66315c5bddd544273fb94727af1c16b457e4878e4198ccb622a225f9549dc3c5"
+  }
 }

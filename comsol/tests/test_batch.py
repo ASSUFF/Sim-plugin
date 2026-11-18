@@ -69,6 +69,17 @@ def test_spec_value_replaces_java_literal(tmp_path: Path) -> None:
     assert 'set("L", "20[mm]")' not in seen[0]
 
 
+def test_unconfirmed_spec_does_not_launch(tmp_path: Path) -> None:
+    java = tmp_path / "Sample.java"
+    java.write_text(GOOD, encoding="utf-8")
+    spec = tmp_path / "job.json"
+    spec.write_text('{"parameters": {"L": {"value": "5[mm]"}}}', encoding="utf-8")
+    result = run_java(java, spec, runs_root=tmp_path / "runs", install_root=tmp_path, check_confirmation=True)
+    assert result["ok"] is False
+    assert result["stage"] == "confirm"
+    assert result["launched_solver"] is False
+
+
 def test_fake_toolchain_returns_results(tmp_path: Path) -> None:
     install = tmp_path / "comsol"
     _install(install)

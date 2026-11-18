@@ -12,5 +12,45 @@
     "b_m": 0.01016,
     "length_m": 0.03,
     "material": "vacuum"
+  },
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "10 GHz"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "WR-90 波导"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "a 0.02286 m，b 0.01016 m，长度 0.03 m"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "vacuum"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "最多 4 次自适应，max_delta_s 0.02"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "最多 4 次自适应"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "S 参数"
+      }
+    ],
+    "token": "c65ecdd7dc0749bd8cc948d34b2d113620db013be416986a14693f8bbb7fd524"
   }
 }

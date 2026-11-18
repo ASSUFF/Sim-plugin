@@ -10,7 +10,7 @@ description: >
 
 The working directory is the plugin root, the folder that contains `pyproject.toml`. On Windows the command is `.venv\Scripts\python.exe -m sim_plugin`. If `comsol_doctor`, `comsol_search`, `comsol_validate`, `comsol_run`, `comsol_sweep`, `comsol_optimize`, and `comsol_advise` are already available, call those tools. Their arguments match the commands below.
 
-When the user states a simulation task in full for the first time, do not launch COMSOL. Organize the request, fill in settings that are easy to miss, and ask the user to confirm. Mark each item as specified or assumed. Cover temperature and other boundary values, geometry and materials, domain size, mesh or solver accuracy, the result names, and, for a sweep or search, the goal, the range, and the run limit. Start `run`, `sweep`, or `optimize` only after confirmation. For an existing `.mph`, use `inspect --project`, then `set` to edit a copy, or `run --project` with `spec.study` to solve that copy. The original file stays unchanged.
+For a new task, fill `confirmation.items` before solving. Each item has `name`, `source` (`specified` or `assumed`), and `value`. The names are `frequency`, `region`, `geometry`, `material`, `accuracy`, `stop`, and `outputs`. A sweep or search also needs `goal`, `range`, and `limit`. Call `confirm` and show the list to the user. `run`, `sweep`, and `optimize` accept only the spec `confirm` returns. They do not launch COMSOL when `stage` is `confirm`. For an existing `.mph`, use `inspect --project`, then `set` to edit a copy, or `run --project` with `spec.study` to solve that copy. The original file stays unchanged.
 
 ## New model
 

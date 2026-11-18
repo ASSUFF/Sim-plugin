@@ -1,11 +1,23 @@
 {
   "parameters": {
-    "L": {"value": "0.1[m]"},
-    "k": {"value": "10[W/(m*K)]"},
-    "rho": {"value": "1000[kg/m^3]"},
-    "Cp": {"value": "1000[J/(kg*K)]"},
-    "T_cold": {"value": "300[K]"},
-    "T_hot": {"value": "400[K]"}
+    "L": {
+      "value": "0.1[m]"
+    },
+    "k": {
+      "value": "10[W/(m*K)]"
+    },
+    "rho": {
+      "value": "1000[kg/m^3]"
+    },
+    "Cp": {
+      "value": "1000[J/(kg*K)]"
+    },
+    "T_cold": {
+      "value": "300[K]"
+    },
+    "T_hot": {
+      "value": "400[K]"
+    }
   },
   "optimize": {
     "parameter": "T_hot",
@@ -14,6 +26,68 @@
     "unit": "K",
     "max_runs": 4
   },
-  "exports": ["T_avg_K", "T_max_K", "T_min_K"],
-  "goal": {"expression": "T_avg_K", "sense": "min"}
+  "exports": [
+    "T_avg_K",
+    "T_max_K",
+    "T_min_K"
+  ],
+  "goal": {
+    "expression": "T_avg_K",
+    "sense": "min"
+  },
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "稳态，不使用频率"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "方板，左右为温度边界，另外两边绝热"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "见 Java 模型"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "见规格中的导热参数"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "使用例子里的网格和求解设置"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "稳态求解"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "T_avg_K、T_max_K、T_min_K"
+      },
+      {
+        "name": "goal",
+        "source": "specified",
+        "value": "最小 T_avg_K"
+      },
+      {
+        "name": "range",
+        "source": "specified",
+        "value": "T_hot 320 K 到 480 K"
+      },
+      {
+        "name": "limit",
+        "source": "specified",
+        "value": "最多 4 次"
+      }
+    ],
+    "token": "4d2aad64a870204eecb58341e0866a6059b61e247c86f19256d3b1ed3418869f"
+  }
 }

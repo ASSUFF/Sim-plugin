@@ -6,5 +6,47 @@
       "max": 40
     }
   },
-  "exports": ["L"]
+  "exports": [
+    "L"
+  ],
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "不使用频率"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "参数块例子"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "见 Java 模型"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "不单独指定"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "使用例子里的求解设置"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "单次求解"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "L"
+      }
+    ],
+    "token": "6be94b4fbca36cf7a7209b58f31b48425c11ff89ca36fafb553ae0f7df67b907"
+  }
 }

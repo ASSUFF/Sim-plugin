@@ -13,6 +13,7 @@ from pathlib import Path
 from lumerical_fdtd.discover import find_install, runs_dir
 from lumerical_fdtd.study import prepare_spec, validate_study
 from lumerical_fdtd.validate import validate_spec
+from sim_plugin.confirm import rejection, solver_payload
 
 ENGINE = Path(__file__).resolve().parents[1] / "lumerical_fdtd" / "engine.py"
 
@@ -104,7 +105,7 @@ def set_project(spec: dict, *, runner=subprocess.run) -> dict:
     return result
 
 
-def run(spec: dict, *, runner=subprocess.run) -> dict:
+def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True) -> dict:
     missing = _require_install()
     if missing:
         return missing
@@ -112,6 +113,10 @@ def run(spec: dict, *, runner=subprocess.run) -> dict:
     if not checked["ok"]:
         checked["stage"] = "validate"
         return checked
+    if check_confirmation and runner is subprocess.run and not spec.get("setup_only"):
+        rejected = rejection(spec)
+        if rejected:
+            return rejected
     return _engine("run", spec, runner=runner)
 
 
@@ -122,6 +127,10 @@ def sweep(study: dict, *, runner=subprocess.run) -> dict:
     missing = _require_install()
     if missing:
         return missing
+    if runner is subprocess.run:
+        rejected = rejection(study)
+        if rejected:
+            return rejected
     return _engine("study", study, runner=runner)
 
 
@@ -196,7 +205,7 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
     inbox = Path(os.environ["LUMERICAL_FDTD_RUNS"]) / "_inbox"
     inbox.mkdir(parents=True, exist_ok=True)
     spec_path = inbox / f"{action}.json"
-    spec_path.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+    spec_path.write_text(json.dumps(solver_payload(spec), ensure_ascii=False), encoding="utf-8")
     env = os.environ.copy()
     src = str(ENGINE.parents[1])
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")

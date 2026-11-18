@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-18. Version `v0.1.1118.4`.
+Updated 2026-11-18. Version `v0.1.1118.5`.
 
-The version has four parts, for example `v0.1.1118.4`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.1.1118.5`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -21,7 +21,13 @@ When the user states a simulation task in full for the first time, do not launch
 - simulation time, adaptive passes, and convergence
 - quantities to report; for a sweep or search, also the goal, the value range, and the run limit
 
-Start a solver command only after the user confirms the list. A later change that only rewords the task, and does not change these settings, does not need another confirmation.
+Write the items into `confirmation.items`. Each item has `name`, `source`, and `value`. `source` is `specified` or `assumed`. The names are `frequency`, `region`, `geometry`, `material`, `accuracy`, `stop`, and `outputs`. A sweep or search also needs `goal`, `range`, and `limit`. Run `confirm`. It does not launch a solver. The `spec` it returns is what `run`, `sweep`, and `optimize` accept. Do not call those three until the user accepts the list. If the spec changes after that, run `confirm` again. Without it, those commands return `stage` `confirm` and `launched_solver` false.
+
+```text
+.venv\Scripts\python.exe -m sim_plugin hfss confirm --spec draft.json
+```
+
+Use `comsol` or `fdtd` in place of `hfss` for the other solvers. The shipped examples already contain a confirmation. A later change that only rewords the task, and does not change these settings, does not need another confirmation.
 
 Run every command from the **plugin root**, the directory that contains `pyproject.toml`. Nothing in these instructions depends on a fixed drive letter.
 
@@ -55,12 +61,13 @@ HFSS_AEDT_PYTHON  python.exe from that environment
 HFSS_AEDT_SRC     the hfss-aedt src directory
 ```
 
-If they are unset, the plugin tries the checkout used during development. Set both variables on any other computer. If Lumerical is not in a default location, set `LUMERICAL_ROOT` to the version directory that contains `api/python/lumapi.py`.
+Both variables are required. When either is missing, or the file it names is not there, an HFSS command returns `stage` `backend` and reports the current value of `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC`. The plugin does not use a path from a particular computer. If Lumerical is not in a default location, set `LUMERICAL_ROOT` to the version directory that contains `api/python/lumapi.py`.
 
 ## 2. What it can do
 
 | Task | COMSOL | HFSS | Lumerical FDTD |
 |---|---|---|---|
+| Confirm a spec without solving | `comsol confirm --spec draft.json` | `hfss confirm --spec draft.json` | `fdtd confirm --spec draft.json` |
 | See whether it is installed | `comsol doctor` | `hfss doctor` | `fdtd doctor` |
 | Check a spec without solving | `validate`, plus `search` | `validate`, plus `prepare` | `validate`, plus `prepare` |
 | Inspect an existing project | `comsol inspect --project model.mph` | `hfss inspect --project model.aedt` | `fdtd inspect --project model.fsp` |

@@ -20,6 +20,7 @@ KNOWN = {
     "script",
     "script_file",
     "exports",
+    "confirmation",
 }
 
 

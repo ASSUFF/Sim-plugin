@@ -2,17 +2,17 @@
   "name": "sin_crossing",
   "hide_gui": true,
   "global_source": {
-    "wavelength start": 1.53e-6,
-    "wavelength stop": 1.57e-6
+    "wavelength start": 1.53e-06,
+    "wavelength stop": 1.57e-06
   },
   "simulation": {
     "dimension": "3D",
     "x": 0,
-    "x span": 45e-6,
+    "x span": 4.5e-05,
     "y": 0,
-    "y span": 45e-6,
+    "y span": 4.5e-05,
     "z": 0,
-    "z span": 3.6e-6,
+    "z span": 3.6e-06,
     "mesh accuracy": 2,
     "simulation time": 2.5e-12,
     "x min bc": "PML",
@@ -24,8 +24,60 @@
   },
   "script_file": "crossing_sin.lsf",
   "exports": [
-    {"name": "T_right", "kind": "transmission", "monitor": "monitor_right"},
-    {"name": "T_bottom", "kind": "transmission", "monitor": "monitor_bottom"},
-    {"name": "E_plane", "monitor": "monitor_plane", "result": "E"}
-  ]
+    {
+      "name": "T_right",
+      "kind": "transmission",
+      "monitor": "monitor_right"
+    },
+    {
+      "name": "T_bottom",
+      "kind": "transmission",
+      "monitor": "monitor_bottom"
+    },
+    {
+      "name": "E_plane",
+      "monitor": "monitor_plane",
+      "result": "E"
+    }
+  ],
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "1.53 um 到 1.57 um"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "45 um x 45 um x 3.6 um，PML"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "氮化硅交叉波导"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "见 crossing_sin.lsf"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "mesh accuracy 2"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "仿真时间 2.5e-12 s"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "端口功率"
+      }
+    ],
+    "token": "31c142cdfb82fa4916520cf10368a0275c31cf1cecc5f4ad4252f7af8d849441"
+  }
 }

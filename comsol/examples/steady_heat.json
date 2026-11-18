@@ -1,10 +1,73 @@
 {
   "parameters": {
-    "L": {"value": "0.1[m]", "min": 0.05, "max": 0.2},
-    "k": {"value": "10[W/(m*K)]", "min": 1, "max": 50},
-    "T_cold": {"value": "300[K]", "min": 250, "max": 350},
-    "T_hot": {"value": "400[K]", "min": 320, "max": 500}
+    "L": {
+      "value": "0.1[m]",
+      "min": 0.05,
+      "max": 0.2
+    },
+    "k": {
+      "value": "10[W/(m*K)]",
+      "min": 1,
+      "max": 50
+    },
+    "T_cold": {
+      "value": "300[K]",
+      "min": 250,
+      "max": 350
+    },
+    "T_hot": {
+      "value": "400[K]",
+      "min": 320,
+      "max": 500
+    }
   },
-  "exports": ["T_avg_K", "T_max_K", "T_min_K"],
-  "goal": {"expression": "T_avg_K", "sense": "min"}
+  "exports": [
+    "T_avg_K",
+    "T_max_K",
+    "T_min_K"
+  ],
+  "goal": {
+    "expression": "T_avg_K",
+    "sense": "min"
+  },
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "稳态，不使用频率"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "方板，左右为温度边界，另外两边绝热"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "见 Java 模型"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "见规格中的导热参数"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "使用例子里的网格和求解设置"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "稳态求解"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "T_avg_K、T_max_K、T_min_K"
+      }
+    ],
+    "token": "93bc0bac796150f5878751d92e7dd605265f03743ffb6aa8e18f0bcaa74e15ca"
+  }
 }

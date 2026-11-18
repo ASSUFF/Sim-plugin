@@ -11,6 +11,7 @@ from pathlib import Path
 from lumerical_fdtd.study import score_fdtd_payload
 
 from fdtd_plugin.backend import _prepare_env, doctor, run
+from sim_plugin.confirm import rejection
 
 MAX_RUNS = 8
 
@@ -20,6 +21,9 @@ def optimize(study: dict) -> dict:
         plan = _plan(study)
     except ValueError as exc:
         return {"ok": False, "launched_solver": False, "stage": "spec", "error": str(exc)}
+    rejected = rejection(study)
+    if rejected:
+        return rejected
     status = doctor()
     if not status.get("installed"):
         return {
@@ -28,7 +32,7 @@ def optimize(study: dict) -> dict:
             "stage": "install",
             "error": status.get("error") or "本机没有找到 Lumerical FDTD。",
         }
-    return _search(plan, run)
+    return _search(plan, lambda spec: run(spec, check_confirmation=False))
 
 
 def optimize_with(study: dict, evaluate) -> dict:

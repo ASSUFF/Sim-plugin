@@ -4,18 +4,18 @@
     "name": "wg_width",
     "hide_gui": true,
     "global_source": {
-      "wavelength start": 1.5e-6,
-      "wavelength stop": 1.6e-6
+      "wavelength start": 1.5e-06,
+      "wavelength stop": 1.6e-06
     },
     "simulation": {
       "dimension": "2D",
       "x": 0,
-      "x span": 6e-6,
+      "x span": 6e-06,
       "y": 0,
-      "y span": 4e-6,
+      "y span": 4e-06,
       "mesh accuracy": 1,
       "simulation time": 4e-13,
-      "auto shutoff min": 1e-4,
+      "auto shutoff min": 0.0001,
       "x min bc": "PML",
       "x max bc": "PML",
       "y min bc": "PML",
@@ -29,8 +29,8 @@
           "material": "Si (Silicon) - Palik",
           "x": 0,
           "y": 0,
-          "x span": 6e-6,
-          "y span": 0.4e-6
+          "x span": 6e-06,
+          "y span": 4e-07
         }
       },
       {
@@ -40,9 +40,9 @@
           "injection axis": "x-axis",
           "direction": "Forward",
           "mode selection": "fundamental mode",
-          "x": -1.5e-6,
+          "x": -1.5e-06,
           "y": 0,
-          "y span": 2.4e-6
+          "y span": 2.4e-06
         }
       },
       {
@@ -50,18 +50,87 @@
         "properties": {
           "name": "monitor_out",
           "monitor type": "Linear Y",
-          "x": 1.5e-6,
+          "x": 1.5e-06,
           "y": 0,
-          "y span": 2.4e-6
+          "y span": 2.4e-06
         }
       }
     ],
     "script": "setglobalmonitor('frequency points', 3); setglobalmonitor('use source limits', 1); setglobalmonitor('use wavelength spacing', 1);",
     "exports": [
-      {"name": "T", "kind": "transmission", "monitor": "monitor_out"}
+      {
+        "name": "T",
+        "kind": "transmission",
+        "monitor": "monitor_out"
+      }
     ]
   },
-  "parameter": {"object": "waveguide", "property": "y span"},
-  "values": [2.0e-7, 5.0e-7],
-  "metric": {"export": "T", "goal": "max", "wavelength_m": 1.55e-6}
+  "parameter": {
+    "object": "waveguide",
+    "property": "y span"
+  },
+  "values": [
+    2e-07,
+    5e-07
+  ],
+  "metric": {
+    "export": "T",
+    "goal": "max",
+    "wavelength_m": 1.55e-06
+  },
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "1.5 um 到 1.6 um"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "6 um x 4 um，PML 边界"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "波导 y span"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "Si (Silicon) - Palik"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "mesh accuracy 1"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "仿真时间 4e-13 s"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "透射 T"
+      },
+      {
+        "name": "goal",
+        "source": "specified",
+        "value": "最大透射"
+      },
+      {
+        "name": "range",
+        "source": "specified",
+        "value": "波导宽度的扫描取值"
+      },
+      {
+        "name": "limit",
+        "source": "specified",
+        "value": "2 到 8 个取值"
+      }
+    ],
+    "token": "8d58a8a28b28bbef902cab6de8db45559eb4be6cfce106cf57929310055c712a"
+  }
 }

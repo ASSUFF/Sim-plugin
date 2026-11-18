@@ -50,6 +50,24 @@ def test_optimize_picks_the_higher_transmission(monkeypatch, tmp_path: Path) -> 
     assert any(fact["name"] == "boundary" for fact in advice["facts"])
 
 
+def test_unconfirmed_run_does_not_launch(monkeypatch) -> None:
+    class Install:
+        python = "python"
+
+        def as_dict(self):
+            return {}
+
+    monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+
+    def explode(*args, **kwargs):
+        raise AssertionError("solver started")
+
+    monkeypatch.setattr("fdtd_plugin.backend._engine", explode)
+    result = run({"name": "smoke", "simulation": {"dimension": "2D"}})
+    assert result["stage"] == "confirm"
+    assert result["launched_solver"] is False
+
+
 def test_run_uses_the_lumerical_interpreter(monkeypatch, tmp_path: Path) -> None:
     python = tmp_path / "python.exe"
     python.write_text("", encoding="utf-8")
