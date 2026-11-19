@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from fdtd_plugin.advise import advise
-from fdtd_plugin.backend import doctor, inspect, run, set_project
+from fdtd_plugin.backend import doctor, inspect, run, set_project, sweep
 from fdtd_plugin.optimize import optimize_with
 
 
@@ -44,10 +44,62 @@ def test_optimize_picks_the_higher_transmission(monkeypatch, tmp_path: Path) -> 
     )
     assert result["ok"] is True
     assert result["run_count"] == 4
-    assert result["best"]["value"] == 5e-7
+    assert result["goal"] == {"expression": "T", "sense": "max"}
+    assert result["best"]["parameters"] == {"waveguide.y span": 5e-7}
+    assert result["best"]["results"]["T"] == 5e-7
+    assert "points" not in result
     advice = advise(result["report"])
     assert advice["launched_solver"] is False
     assert any(fact["name"] == "boundary" for fact in advice["facts"])
+
+
+def test_sweep_uses_rows_and_records_assumptions(monkeypatch, tmp_path: Path) -> None:
+    class Install:
+        python = "python"
+
+        def as_dict(self):
+            return {}
+
+    monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+    monkeypatch.setenv("LUMERICAL_FDTD_RUNS", str(tmp_path))
+    solved = tmp_path / "solved"
+    solved.mkdir()
+    (solved / "summary.json").write_text("{}", encoding="utf-8")
+
+    def runner(command, **kwargs):
+        payload = {
+            "ok": True,
+            "points": [
+                {"value": 2e-7, "ok": True, "score": 0.2, "run_dir": str(tmp_path / "missing")},
+                {"value": 5e-7, "ok": True, "score": 0.9, "run_dir": str(solved)},
+            ],
+        }
+        return SimpleNamespace(returncode=0, stdout="FDTD_RESULT " + json.dumps(payload) + "\n", stderr="")
+
+    result = sweep(
+        {
+            "name": "wg",
+            "base": {"name": "wg", "simulation": {"dimension": "2D"}},
+            "parameter": {"object": "waveguide", "property": "y span"},
+            "values": [2e-7, 5e-7],
+            "metric": {"goal": "max", "export": "T"},
+            "confirmation": {
+                "items": [
+                    {"name": "frequency", "source": "specified", "value": "1550 nm"},
+                    {"name": "region", "source": "assumed", "value": "6 um by 4 um"},
+                ]
+            },
+        },
+        runner=runner,
+    )
+    assert result["stage"] == "sweep"
+    assert result["goal"] == {"expression": "T", "sense": "max"}
+    assert result["best"]["parameters"] == {"waveguide.y span": 5e-7}
+    assert result["best"]["results"]["T"] == 0.9
+    assert result["assumptions"] == ["region: 6 um by 4 um"]
+    assert "points" not in result
+    saved = json.loads((solved / "summary.json").read_text(encoding="utf-8"))
+    assert saved["assumptions"] == ["region: 6 um by 4 um"]
 
 
 def test_unconfirmed_run_does_not_launch(monkeypatch) -> None:

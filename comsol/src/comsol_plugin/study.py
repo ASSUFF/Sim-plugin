@@ -11,7 +11,7 @@ from pathlib import Path
 
 from comsol_plugin.batch import run_java
 from comsol_plugin.validate import validate_job
-from sim_plugin.confirm import rejection
+from sim_plugin.confirm import assumption_lines, rejection
 
 MAX_RUNS = 8
 
@@ -140,6 +140,7 @@ def _evaluate(java, spec, *, kind, stoptime_s, runs_root, install_root, runner) 
         "run_count": len(rows),
         "max_runs": MAX_RUNS,
         "work_dir": str(folder),
+        "assumptions": assumption_lines(spec_data),
         "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
     }
     if best is None and rows and rows[-1].get("error"):

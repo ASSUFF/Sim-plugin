@@ -34,6 +34,9 @@ def advise(report_path: str | Path) -> dict:
     elif report.get("results"):
         facts.append({"name": "single_run", "detail": "这是一次求解。还没有参数扫描，不能把它当成最优解。"})
         facts.append({"name": "results", "detail": _format_results(report.get("results"))})
+    assumed = report.get("assumptions")
+    if isinstance(assumed, list) and assumed:
+        facts.append({"name": "assumptions", "detail": "这次采用的假定：" + "；".join(str(line) for line in assumed)})
     if report.get("error"):
         facts.append({"name": "error", "detail": str(report["error"])})
     log_path = _log_path(report)

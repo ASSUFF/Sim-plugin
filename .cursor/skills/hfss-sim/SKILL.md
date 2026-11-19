@@ -10,7 +10,7 @@ description: >
 
 The working directory is the plugin root, the folder that contains `pyproject.toml`. On Windows the command is `.venv\Scripts\python.exe -m sim_plugin`. If `hfss_doctor`, `hfss_validate`, `hfss_prepare`, `hfss_run`, `hfss_sweep`, `hfss_optimize`, and `hfss_advise` are already available, call those tools.
 
-For a new task, fill `confirmation.items` before solving. Each item has `name`, `source` (`specified` or `assumed`), and `value`. The names are `frequency`, `region`, `geometry`, `material`, `accuracy`, `stop`, and `outputs`. A sweep or search also needs `goal`, `range`, and `limit`. Call `confirm` and show the list to the user. `run`, `sweep`, and `optimize` accept only the spec `confirm` returns. They do not launch HFSS when `stage` is `confirm`. For an existing `.aedt`, use `inspect --project`, then `set` with `variables` to edit a copy. The original file stays unchanged.
+For a new task, fill `confirmation.items` before solving. Each item has `name`, `source` (`specified` or `assumed`), and `value`. The names are `frequency`, `region`, `geometry`, `material`, `accuracy`, `stop`, and `outputs`. A sweep or search also needs `goal`, `range`, and `limit`. Call `confirm` and show the list to the user. `run`, `sweep`, and `optimize` accept only the spec `confirm` returns. They do not launch HFSS when `stage` is `confirm`. Each report stores `assumptions` from checklist items whose `source` is `assumed`. For an existing `.aedt`, use `inspect --project`, then `set` with `variables` to edit a copy. The original file stays unchanged.
 
 Lengths are metres and frequency is hertz. For S21 use `dB(S(P2,P1))` and `goal: max`. For S11 use `dB(S(P1,P1))` and `goal: min`.
 

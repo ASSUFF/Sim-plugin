@@ -13,7 +13,7 @@ from pathlib import Path
 from lumerical_fdtd.discover import find_install, runs_dir
 from lumerical_fdtd.study import prepare_spec, validate_study
 from lumerical_fdtd.validate import validate_spec
-from sim_plugin.confirm import rejection, solver_payload
+from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
 
 ENGINE = Path(__file__).resolve().parents[1] / "lumerical_fdtd" / "engine.py"
 
@@ -117,7 +117,7 @@ def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True) -
         rejected = rejection(spec)
         if rejected:
             return rejected
-    return _engine("run", spec, runner=runner)
+    return apply_assumptions(_engine("run", spec, runner=runner), assumption_lines(spec))
 
 
 def sweep(study: dict, *, runner=subprocess.run) -> dict:
@@ -131,7 +131,10 @@ def sweep(study: dict, *, runner=subprocess.run) -> dict:
         rejected = rejection(study)
         if rejected:
             return rejected
-    return _engine("study", study, runner=runner)
+    raw = _engine("study", study, runner=runner)
+    if not isinstance(raw, dict) or not isinstance(raw.get("points"), list):
+        return raw
+    return _publish_rows(study, raw, kind="sweep")
 
 
 def _require_install() -> dict | None:
@@ -238,3 +241,85 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
         body = {"ok": False, "raw": body}
     body["launched_solver"] = bool(body.get("run_dir") or body.get("points"))
     return body
+
+
+def rows_from_points(points: list, parameter_name: str, expression: str) -> list[dict]:
+    rows = []
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        score = point.get("score")
+        results = {}
+        if isinstance(score, (int, float)) and not isinstance(score, bool):
+            results[expression] = score
+        rows.append(
+            {
+                "parameters": {parameter_name: point.get("value")},
+                "ok": bool(point.get("ok")),
+                "results": results,
+                "work_dir": point.get("run_dir"),
+                "error": point.get("error"),
+            }
+        )
+    return rows
+
+
+def best_row(rows: list[dict], expression: str, sense: str) -> dict | None:
+    ranked = []
+    for row in rows:
+        value = row.get("results", {}).get(expression) if isinstance(row.get("results"), dict) else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            ranked.append(row)
+    if not ranked:
+        return None
+    return min(ranked, key=lambda row: row["results"][expression]) if sense == "min" else max(
+        ranked, key=lambda row: row["results"][expression]
+    )
+
+
+def _publish_rows(study: dict, raw: dict, *, kind: str) -> dict:
+    parameter = study.get("parameter") if isinstance(study.get("parameter"), dict) else {}
+    obj = parameter.get("object") if isinstance(parameter.get("object"), str) else "object"
+    prop = parameter.get("property") if isinstance(parameter.get("property"), str) else "property"
+    metric = study.get("metric") if isinstance(study.get("metric"), dict) else {}
+    expression = metric.get("export") if isinstance(metric.get("export"), str) and metric["export"].strip() else "T"
+    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else raw.get("goal") if raw.get("goal") in ("min", "max") else "max"
+    rows = rows_from_points(raw.get("points") or [], f"{obj}.{prop}", expression)
+    best = best_row(rows, expression, sense)
+    lines = assumption_lines(study)
+    _stamp_point_reports(raw.get("points") or [], lines)
+    _prepare_env()
+    label = study.get("name") or (study.get("base") or {}).get("name") or "fdtd"
+    safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(label)).strip("_") or "fdtd"
+    folder = Path(os.environ["LUMERICAL_FDTD_RUNS"]) / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{safe}_{kind}"
+    folder.mkdir(parents=True, exist_ok=True)
+    report = {
+        "ok": bool(rows) and all(row["ok"] for row in rows) and best is not None,
+        "stage": kind,
+        "launched_solver": bool(raw.get("launched_solver")),
+        "goal": {"expression": expression, "sense": sense},
+        "rows": rows,
+        "best": best,
+        "run_count": len(rows),
+        "max_runs": 8,
+        "work_dir": str(folder),
+        "assumptions": lines,
+        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
+    }
+    if best is None and rows and rows[-1].get("error"):
+        report["error"] = rows[-1]["error"]
+    elif best is None:
+        report["error"] = f"结果里没有可用的数值 {expression}。"
+    report_path = folder / "report.json"
+    report["report"] = str(report_path)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
+
+
+def _stamp_point_reports(points: list, lines: list[str]) -> None:
+    for point in points:
+        if not isinstance(point, dict) or not isinstance(point.get("run_dir"), str):
+            continue
+        summary = Path(point["run_dir"]) / "summary.json"
+        if summary.is_file():
+            apply_assumptions({"summary_path": str(summary)}, lines)

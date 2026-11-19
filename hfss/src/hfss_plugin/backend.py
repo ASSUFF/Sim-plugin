@@ -15,7 +15,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from sim_plugin.confirm import rejection, solver_payload
+from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
 
 _DEFAULT_PROTECTED_PROJECT = Path(r"S:\simulation\HFSS\4mm.aedt")
 
@@ -138,7 +138,7 @@ def run(
     if not checked.get("ok"):
         checked["stage"] = "validate"
         return checked
-    return _engine("run", spec, python=python, src=src, runner=runner)
+    return apply_assumptions(_engine("run", spec, python=python, src=src, runner=runner), assumption_lines(spec))
 
 
 def sweep(study: dict, *, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
@@ -421,6 +421,7 @@ def _publish_sweep(study: dict, raw: dict) -> dict:
         "run_count": len(rows),
         "max_runs": 8,
         "work_dir": str(folder),
+        "assumptions": assumption_lines(study),
         "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
     }
     if best is None and rows and rows[-1].get("error"):

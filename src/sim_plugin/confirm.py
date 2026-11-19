@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from pathlib import Path
 
 CORE_ITEMS = ("frequency", "region", "geometry", "material", "accuracy", "stop", "outputs")
 STUDY_ITEMS = ("goal", "range", "limit")
@@ -31,6 +32,45 @@ def confirm(spec: object) -> dict:
     stamped["confirmation"] = confirmation
     confirmation["token"] = _token(stamped)
     return {"ok": True, "launched_solver": False, "stage": "confirm", "spec": stamped}
+
+
+def assumption_lines(spec: object) -> list[str]:
+    """Return the checklist items the user accepted as assumptions."""
+    if not isinstance(spec, dict):
+        return []
+    confirmation = spec.get("confirmation")
+    items = confirmation.get("items") if isinstance(confirmation, dict) else None
+    lines: list[str] = []
+    if not isinstance(items, list):
+        return lines
+    for item in items:
+        if not isinstance(item, dict) or item.get("source") != "assumed":
+            continue
+        name = item.get("name")
+        value = item.get("value")
+        if isinstance(name, str) and isinstance(value, str) and value.strip():
+            lines.append(f"{name}: {value.strip()}")
+    return lines
+
+
+def apply_assumptions(payload: dict, lines: list[str]) -> dict:
+    """Store assumptions on a result and on a report file that already exists."""
+    payload["assumptions"] = list(lines)
+    for key in ("summary_path", "report"):
+        raw = payload.get(key)
+        if not isinstance(raw, str):
+            continue
+        path = Path(raw)
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict):
+            data["assumptions"] = list(lines)
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return payload
 
 
 def solver_payload(spec: object) -> object:

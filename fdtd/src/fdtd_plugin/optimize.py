@@ -10,8 +10,8 @@ from pathlib import Path
 
 from lumerical_fdtd.study import score_fdtd_payload
 
-from fdtd_plugin.backend import _prepare_env, doctor, run
-from sim_plugin.confirm import rejection
+from fdtd_plugin.backend import _prepare_env, _stamp_point_reports, best_row, doctor, rows_from_points, run
+from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection
 
 MAX_RUNS = 8
 
@@ -32,7 +32,12 @@ def optimize(study: dict) -> dict:
             "stage": "install",
             "error": status.get("error") or "本机没有找到 Lumerical FDTD。",
         }
-    return _search(plan, lambda spec: run(spec, check_confirmation=False))
+    lines = assumption_lines(study)
+    return _search(
+        plan,
+        lambda spec: _evaluated(spec, lines),
+        lines,
+    )
 
 
 def optimize_with(study: dict, evaluate) -> dict:
@@ -41,10 +46,17 @@ def optimize_with(study: dict, evaluate) -> dict:
         plan = _plan(study)
     except ValueError as exc:
         return {"ok": False, "launched_solver": False, "stage": "spec", "error": str(exc)}
-    return _search(plan, evaluate)
+    return _search(plan, evaluate, assumption_lines(study))
 
 
-def _search(plan: dict, evaluate) -> dict:
+def _evaluated(spec: dict, lines: list[str]) -> dict:
+    result = run(spec, check_confirmation=False)
+    if isinstance(result, dict):
+        apply_assumptions(result, lines)
+    return result
+
+
+def _search(plan: dict, evaluate, assumptions: list[str]) -> dict:
     _prepare_env()
     folder = Path(os.environ["LUMERICAL_FDTD_RUNS"]) / (
         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{plan['name']}_optimize"
@@ -85,24 +97,28 @@ def _search(plan: dict, evaluate) -> dict:
         if not consider(nxt):
             break
 
-    best = _best(points, plan["goal"])
+    expression = plan["metric"].get("export") if isinstance(plan["metric"].get("export"), str) else "T"
+    parameter_name = f"{plan['object']}.{plan['property']}"
+    rows = rows_from_points(points, parameter_name, expression)
+    chosen = best_row(rows, expression, plan["goal"])
+    _stamp_point_reports(points, assumptions)
     report = {
-        "ok": bool(points) and all(point["ok"] for point in points) and best is not None,
+        "ok": bool(rows) and all(row["ok"] for row in rows) and chosen is not None,
         "stage": "optimize",
         "launched_solver": launched,
-        "parameter": {"object": plan["object"], "property": plan["property"]},
-        "metric": plan["metric"],
-        "points": points,
-        "best": best,
-        "run_count": len(points),
+        "goal": {"expression": expression, "sense": plan["goal"]},
+        "rows": rows,
+        "best": chosen,
+        "run_count": len(rows),
         "max_runs": MAX_RUNS,
         "work_dir": str(folder),
-        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的取值上的全局最优。",
+        "assumptions": assumptions,
+        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
     }
-    if best is None and points and points[-1].get("error"):
+    if chosen is None and points and points[-1].get("error"):
         report["error"] = points[-1]["error"]
-    elif best is None:
-        report["error"] = "结果里没有可用的监视器分数。"
+    elif chosen is None:
+        report["error"] = f"结果里没有可用的数值 {expression}。"
     report_path = folder / "report.json"
     report["report"] = str(report_path)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -175,9 +191,3 @@ def _next_value(points: list[dict], goal: str, span: float) -> float | None:
             return candidate
     return None
 
-
-def _best(points: list[dict], goal: str) -> dict | None:
-    ranked = [point for point in points if isinstance(point.get("score"), (int, float)) and not isinstance(point.get("score"), bool)]
-    if not ranked:
-        return None
-    return min(ranked, key=lambda point: point["score"]) if goal == "min" else max(ranked, key=lambda point: point["score"])

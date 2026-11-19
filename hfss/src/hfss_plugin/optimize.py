@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from hfss_plugin.backend import _protected_project, _runs_root, license_error, run
+from sim_plugin.confirm import apply_assumptions, assumption_lines
 
 MAX_RUNS = 8
 
@@ -24,6 +25,7 @@ def optimize(study: dict, *, runner=None, python=None, src=None) -> dict:
     if blocked:
         return blocked
     use_real_runner = runner is None
+    assumed = assumption_lines(study)
     if use_real_runner:
         from sim_plugin.confirm import rejection
 
@@ -42,7 +44,10 @@ def optimize(study: dict, *, runner=None, python=None, src=None) -> dict:
             kwargs["python"] = python
         if src is not None:
             kwargs["src"] = src
-        return run(spec, **kwargs)
+        result = run(spec, **kwargs)
+        if isinstance(result, dict):
+            apply_assumptions(result, assumed)
+        return result
 
     folder = _runs_root() / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{plan['name']}_optimize"
     folder.mkdir(parents=True, exist_ok=True)
@@ -96,6 +101,7 @@ def optimize(study: dict, *, runner=None, python=None, src=None) -> dict:
         "run_count": len(points),
         "max_runs": MAX_RUNS,
         "work_dir": str(folder),
+        "assumptions": assumed,
         "note": "best 是这次已计算长度里按目标选出的结果。它不是没有计算过的长度上的全局最优。",
     }
     if best is None and points and points[-1].get("error"):

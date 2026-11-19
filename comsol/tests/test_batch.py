@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -78,6 +79,30 @@ def test_unconfirmed_spec_does_not_launch(tmp_path: Path) -> None:
     assert result["ok"] is False
     assert result["stage"] == "confirm"
     assert result["launched_solver"] is False
+
+
+def test_report_records_assumed_items(tmp_path: Path) -> None:
+    install = tmp_path / "comsol"
+    _install(install)
+    java = tmp_path / "Sample.java"
+    java.write_text(GOOD, encoding="utf-8")
+    spec = tmp_path / "job.json"
+    spec.write_text(
+        '{"parameters": {"L": {"value": "20[mm]"}}, "confirmation": {"items": ['
+        '{"name": "frequency", "source": "specified", "value": "稳态"},'
+        '{"name": "material", "source": "assumed", "value": "导热系数 10"}]}}',
+        encoding="utf-8",
+    )
+
+    def runner(command, **kwargs):
+        if Path(command[0]).name == "comsolcompile.exe":
+            Path(command[1]).with_suffix(".class").write_text("class", encoding="utf-8")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout="===RESULT===\nL=20[mm]\n", stderr="")
+
+    result = run_java(java, spec, runs_root=tmp_path / "runs", install_root=install, stoptime_s=30, runner=runner)
+    saved = json.loads(Path(result["report"]).read_text(encoding="utf-8"))
+    assert saved["assumptions"] == ["material: 导热系数 10"]
 
 
 def test_fake_toolchain_returns_results(tmp_path: Path) -> None:

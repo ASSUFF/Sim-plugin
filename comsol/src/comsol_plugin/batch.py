@@ -14,11 +14,21 @@ from pathlib import Path
 
 from comsol_plugin.discover import find_install
 from comsol_plugin.validate import validate_job
-from sim_plugin.confirm import rejection
+from sim_plugin.confirm import assumption_lines, rejection
 
 _DEFAULT_STOPTIME_S = 600
 _MAX_STOPTIME_S = 7200
 _PARAM_SET = re.compile(r'(param\(\)\.set\(\s*")([^"]+)("\s*,\s*")([^"]*)(")')
+
+
+def _assumptions(spec: str | Path | None) -> list[str]:
+    if spec is None:
+        return []
+    try:
+        data = json.loads(Path(spec).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return assumption_lines(data)
 
 
 def _confirmed(spec: str | Path | None) -> dict | None:
@@ -158,6 +168,7 @@ def run_java(
         payload["error"] = "comsolbatch 返回了非零退出码。日志在 batch_log。"
     elif missing:
         payload["error"] = "输出里缺少这些结果：" + ", ".join(missing)
+    payload["assumptions"] = _assumptions(spec)
     report_path = work / "report.json"
     payload["report"] = str(report_path)
     report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

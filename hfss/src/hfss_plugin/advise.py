@@ -26,6 +26,9 @@ def advise(report_path: str | Path) -> dict:
         facts.append({"name": "s_parameters", "detail": _format_s(s_db)})
     elif report.get("points"):
         facts.extend(_optimize_facts(report))
+    assumed = report.get("assumptions")
+    if isinstance(assumed, list) and assumed:
+        facts.append({"name": "assumptions", "detail": "这次采用的假定：" + "；".join(str(line) for line in assumed)})
     if report.get("error"):
         facts.append({"name": "error", "detail": str(report["error"])})
     if not facts:

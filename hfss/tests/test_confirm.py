@@ -1,4 +1,4 @@
-from sim_plugin.confirm import CORE_ITEMS, STUDY_ITEMS, confirm, rejection
+from sim_plugin.confirm import CORE_ITEMS, STUDY_ITEMS, assumption_lines, confirm, rejection
 from hfss_plugin.backend import run
 
 
@@ -30,6 +30,18 @@ def test_unconfirmed_run_does_not_launch(monkeypatch) -> None:
     result = run({"name": "wr90"})
     assert result["stage"] == "confirm"
     assert result["launched_solver"] is False
+
+
+def test_assumption_lines_keep_only_assumed_items() -> None:
+    spec = {
+        "confirmation": {
+            "items": [
+                {"name": "frequency", "source": "specified", "value": "10 GHz"},
+                {"name": "material", "source": "assumed", "value": "vacuum"},
+            ]
+        }
+    }
+    assert assumption_lines(spec) == ["material: vacuum"]
 
 
 def test_study_checklist_requires_the_goal_range_and_limit() -> None:
