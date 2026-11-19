@@ -177,6 +177,29 @@ def apply_overrides(session, overrides):
             session.setnamed(item["object"], prop_name(item["property"]), item["value"], index)
 
 
+def _scalar(data):
+    """Read a single transmission number. Leave arrays and datasets to the caller."""
+    if isinstance(data, dict) or hasattr(data, "shape"):
+        return None
+    if isinstance(data, bool):
+        return None
+    if isinstance(data, (int, float)):
+        return float(data)
+    if isinstance(data, str):
+        try:
+            return float(data.strip())
+        except ValueError:
+            return None
+    try:
+        return float(data)
+    except (TypeError, ValueError):
+        return None
+
+
+def _numbered_script(script):
+    return "\n".join("%4d | %s" % (index, line) for index, line in enumerate(script.splitlines(), 1))
+
+
 def store_dataset(data, folder, stem):
     folder.mkdir(parents=True, exist_ok=True)
     summary = {"stem": stem}
@@ -207,6 +230,13 @@ def store_dataset(data, folder, stem):
             info["abs_max"] = float(_np.nanmax(magnitude))
         return info
 
+    number = _scalar(data)
+    if number is not None:
+        if _np is not None:
+            summary["array"] = save_array("value", _np.asarray([number]))
+        else:
+            summary["array"] = {"shape": [1], "dtype": "float64", "values": [number]}
+        return summary
     if isinstance(data, _np.ndarray):
         summary["array"] = save_array("value", data)
         return summary
@@ -346,6 +376,7 @@ def run_spec(spec, spec_path=None, emit_result=True):
         "warnings": warnings,
     }
     saved = folder / ("%s.fsp" % "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in name)[:40])
+    script = ""
     try:
         bootstrap()
         session = open_session(project, hide=hide)
@@ -391,6 +422,8 @@ def run_spec(spec, spec_path=None, emit_result=True):
         if saved.is_file() and "project_copy" not in payload:
             payload["project_copy"] = str(saved)
         payload["error"] = str(exc)
+        if script:
+            payload["script_lines"] = _numbered_script(script)
         if "Session not found" in str(exc):
             payload["hint"] = (
                 "Lumerical did not keep a solver session open. Check that a license "

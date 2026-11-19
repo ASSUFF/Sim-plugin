@@ -20,6 +20,13 @@ from sim_plugin.sweep import combinations
 ENGINE = Path(__file__).resolve().parents[1] / "lumerical_fdtd" / "engine.py"
 
 
+def _timeout_s(spec: dict) -> int:
+    raw = spec.get("timeout_s") if isinstance(spec, dict) else None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return 3600
+    return max(1, int(raw))
+
+
 def _prepare_env() -> None:
     os.environ.setdefault("LUMERICAL_FDTD_RUNS", str(Path(__file__).resolve().parents[2] / "runs"))
 
@@ -247,8 +254,8 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
     env = os.environ.copy()
     src = str(ENGINE.parents[1])
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
-    completed = runner(
-        [_interpreter(), str(ENGINE), action, "--spec", str(spec_path)],
+    command = [_interpreter(), str(ENGINE), action, "--spec", str(spec_path)]
+    options = dict(
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -256,6 +263,17 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
         env=env,
         check=False,
     )
+    if runner is subprocess.run:
+        options["timeout"] = _timeout_s(spec)
+    try:
+        completed = runner(command, **options)
+    except subprocess.TimeoutExpired:
+        return {
+            "ok": False,
+            "launched_solver": True,
+            "stage": "timeout",
+            "error": "求解超过 %d 秒仍未返回。下一步：增大规格里的 timeout_s，或先修正材料名和脚本。" % _timeout_s(spec),
+        }
     stdout = completed.stdout or ""
     marker = "FDTD_RESULT "
     index = stdout.rfind(marker)

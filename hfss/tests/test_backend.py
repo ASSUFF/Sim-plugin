@@ -12,6 +12,31 @@ def _python(tmp_path: Path) -> Path:
     return exe
 
 
+def test_unknown_material_is_rejected_before_launch(tmp_path: Path) -> None:
+    result = run(
+        {"name": "ln", "geometry": {"kind": "rectangular_waveguide", "material": "LiNbO3"}},
+        python=_python(tmp_path),
+        src=tmp_path,
+        runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("solver started")),
+    )
+    assert result["ok"] is False
+    assert result["stage"] == "spec"
+    assert result["launched_solver"] is False
+    assert "vacuum" in result["error"]
+
+
+def test_project_without_design_is_rejected(tmp_path: Path) -> None:
+    result = run(
+        {"name": "owned", "project": str(tmp_path / "model.aedt")},
+        python=_python(tmp_path),
+        src=tmp_path,
+        runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("solver started")),
+    )
+    assert result["stage"] == "spec"
+    assert "design" in result["error"]
+    assert result["launched_solver"] is False
+
+
 def test_missing_backend_python_does_not_launch(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("HFSS_AEDT_PYTHON", raising=False)
     monkeypatch.delenv("HFSS_AEDT_SRC", raising=False)

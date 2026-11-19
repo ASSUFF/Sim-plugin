@@ -30,6 +30,34 @@ def test_relative_script_stays_beside_the_spec(tmp_path: Path, monkeypatch) -> N
     assert seen["script"] == str(script.resolve())
 
 
+def test_scalar_transmission_is_numeric(tmp_path: Path) -> None:
+    from lumerical_fdtd.engine import store_dataset
+
+    saved = store_dataset("0.40622", tmp_path, "T")
+    assert saved["array"]["values"] == [0.40622]
+    assert "repr" not in saved
+
+
+def test_hung_solver_returns_timeout(monkeypatch, tmp_path: Path) -> None:
+    import subprocess
+
+    monkeypatch.setattr("fdtd_plugin.backend._require_install", lambda: None)
+    monkeypatch.setenv("LUMERICAL_FDTD_RUNS", str(tmp_path))
+
+    def runner(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, 1)
+
+    result = run(
+        {"name": "hung", "simulation": {"dimension": "2D"}, "timeout_s": 30},
+        runner=runner,
+        check_confirmation=False,
+        preflight=False,
+    )
+    assert result["ok"] is False
+    assert result["stage"] == "timeout"
+    assert "timeout_s" in result["error"]
+
+
 def test_doctor_reports_missing_install_without_launching(monkeypatch) -> None:
     def missing():
         raise FileNotFoundError("lumapi.py was not found")

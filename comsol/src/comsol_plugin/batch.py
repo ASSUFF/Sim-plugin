@@ -16,6 +16,7 @@ from comsol_plugin.discover import find_install
 from comsol_plugin.validate import validate_job
 from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import assumption_lines, rejection
+from sim_plugin.result_check import problems as result_problems
 
 _DEFAULT_STOPTIME_S = 600
 _MAX_STOPTIME_S = 7200
@@ -156,7 +157,9 @@ def run_java(
     results = parse_results(batched["stdout"])
     saved = sorted(str(path) for path in work.glob("*.mph"))
     missing = [name for name in checked["exports"] if name not in results]
-    ok = batched["returncode"] == 0 and not missing and (not checked["exports"] or bool(results))
+    spec_data = _spec_data(spec)
+    numeric_problems = result_problems(results, spec_data.get("expect") if isinstance(spec_data.get("expect"), dict) else None)
+    ok = batched["returncode"] == 0 and not missing and (not checked["exports"] or bool(results)) and not numeric_problems
     payload = {
         "ok": ok,
         "stage": "batch",
@@ -176,6 +179,9 @@ def run_java(
         payload["error"] = "comsolbatch 返回了非零退出码。日志在 batch_log。"
     elif missing:
         payload["error"] = "输出里缺少这些结果：" + ", ".join(missing)
+    elif numeric_problems:
+        payload["stage"] = "result"
+        payload["error"] = "结果未通过数值检查：" + " ".join(numeric_problems)
     payload["assumptions"] = _assumptions(spec)
     report_path = work / "report.json"
     payload["report"] = str(report_path)

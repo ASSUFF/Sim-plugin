@@ -24,6 +24,17 @@ KNOWN = {
 }
 
 
+def _material_spelling(material):
+    exact = "<Object defined dielectric>"
+    if not isinstance(material, str):
+        return None
+    if material == exact:
+        return None
+    if material.lower() == exact.lower():
+        return "对象介质的名称必须是 %s。大小写不同会让 Lumerical 卡住。" % exact
+    return None
+
+
 def safe_identifier(value, label):
     if not isinstance(value, str) or not NAME_RE.match(value):
         raise ValueError("%s must be a Lumerical identifier" % label)
@@ -70,6 +81,10 @@ def validate_spec(spec):
             errors.append("commands[%d].op must be a Lumerical add* name" % index)
         if "properties" in command and not isinstance(command["properties"], dict):
             errors.append("commands[%d].properties must be an object" % index)
+        elif isinstance(command.get("properties"), dict):
+            material_error = _material_spelling(command["properties"].get("material"))
+            if material_error:
+                errors.append("commands[%d].properties.material: %s" % (index, material_error))
     overrides = spec.get("overrides") or []
     if "overrides" in spec and not isinstance(overrides, list):
         errors.append("overrides must be an array")

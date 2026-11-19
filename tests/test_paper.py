@@ -72,6 +72,33 @@ def test_report_path_supplies_the_simulated_value(tmp_path: Path) -> None:
     assert result["rows"][0]["within"] is True
 
 
+def test_non_finite_result_is_rejected() -> None:
+    from sim_plugin.result_check import problems
+
+    found = problems({"E": "Infinity", "V": 1.0}, {"V": {"min": 0.5}})
+    assert any("E" in item for item in found)
+    assert not any(item.startswith("V=") for item in found)
+
+
+def test_paper_new_solver_flag_does_not_crash(tmp_path: Path) -> None:
+    from sim_plugin.cli import main
+
+    code = main(
+        [
+            "paper",
+            "new",
+            "--folder",
+            str(tmp_path / "case"),
+            "--solver",
+            "hfss",
+            "--request",
+            "铌酸锂电极",
+        ]
+    )
+    assert code == 0
+    assert (tmp_path / "case" / "request.json").is_file()
+
+
 def test_compare_before_targets_does_not_launch(tmp_path: Path) -> None:
     folder = tmp_path / "case"
     create_case(folder, "稳态导热", "comsol")

@@ -9,6 +9,20 @@ SMOKE = ROOT / "examples" / "smoke_2d.json"
 
 
 class ValidateTests(unittest.TestCase):
+    def test_wrong_object_dielectric_spelling_is_rejected(self):
+        errors, _warnings = validate_spec(
+            {
+                "simulation": {"dimension": "2D"},
+                "commands": [
+                    {
+                        "op": "addrect",
+                        "properties": {"name": "core", "material": "<Object Defined Dielectric>"},
+                    }
+                ],
+            }
+        )
+        self.assertTrue(any("Object defined dielectric" in error for error in errors))
+
     def test_smoke_example(self):
         errors, warnings = validate_spec(json.loads(SMOKE.read_text(encoding="utf-8")))
         self.assertEqual(errors, [])

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
+from sim_plugin.result_check import problems as result_problems
 from sim_plugin.sweep import combinations
 
 _DEFAULT_PROTECTED_PROJECT = Path(r"S:\simulation\HFSS\4mm.aedt")
@@ -130,6 +131,9 @@ def run(
     blocked = _protected_project(spec)
     if blocked:
         return blocked
+    limited = _unsupported_request(spec)
+    if limited:
+        return limited
     solving = runner is subprocess.run and not spec.get("setup_only")
     if solving and check_confirmation:
         rejected = rejection(spec)
@@ -147,7 +151,8 @@ def run(
     if not checked.get("ok"):
         checked["stage"] = "validate"
         return checked
-    return apply_assumptions(_engine("run", spec, python=python, src=src, runner=runner), assumption_lines(spec))
+    body = apply_assumptions(_engine("run", spec, python=python, src=src, runner=runner), assumption_lines(spec))
+    return _reject_bad_numbers(body, spec.get("expect") if isinstance(spec, dict) else None)
 
 
 def sweep(study: dict, *, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
@@ -155,6 +160,9 @@ def sweep(study: dict, *, python: Path | None = None, src: Path | None = None, r
     blocked = _protected_project(base if isinstance(base, dict) else {})
     if blocked:
         return blocked
+    limited = _unsupported_request(base if isinstance(base, dict) else {})
+    if limited:
+        return limited
     if isinstance(study, dict) and isinstance(study.get("sweep"), dict):
         return _sweep_many(study, python=python, src=src, runner=runner)
     if runner is subprocess.run:
@@ -196,6 +204,75 @@ def license_error(address: str | None = None) -> str | None:
 
 def _runs_root() -> Path:
     return Path(__file__).resolve().parents[2] / "runs"
+
+
+_KNOWN_MATERIALS = {"vacuum", "air", "pec", "copper", "gold", "aluminum", "silver", "teflon"}
+
+
+def _unsupported_request(spec: dict) -> dict | None:
+    """Stop requests the current backend would answer with the wrong physics."""
+    if not isinstance(spec, dict):
+        return None
+    if spec.get("project") and not str(spec.get("design") or "").strip():
+        return {
+            "ok": False,
+            "launched_solver": False,
+            "stage": "spec",
+            "error": "打开已有工程需要 spec.design，填写该工程里已经存在的设计名。留空时后端会新建名为 HFSS 的空设计。",
+        }
+    geometry = spec.get("geometry") if isinstance(spec.get("geometry"), dict) else {}
+    kind = geometry.get("kind")
+    if isinstance(kind, str) and kind != "rectangular_waveguide":
+        return {
+            "ok": False,
+            "launched_solver": False,
+            "stage": "spec",
+            "error": (
+                f"当前 HFSS 后端只能建立矩形波导，不能建立 {kind}，也不返回端口 Neff 或 Z0。"
+                "下一步：改用 rectangular_waveguide，或在工程里建好模型后用 project 和 design 打开。"
+            ),
+        }
+    requested = [str(item) for item in spec.get("quantities") or []]
+    missing = [item for item in requested if item.lower() in {"z0", "neff", "n_rf", "nrf"}]
+    if missing:
+        return {
+            "ok": False,
+            "launched_solver": False,
+            "stage": "spec",
+            "error": "当前 HFSS 后端只返回 S 参数，不能返回 " + "、".join(missing) + "。下一步：从 quantities 里去掉这些量。",
+        }
+    material = geometry.get("material")
+    if (
+        isinstance(material, str)
+        and material.strip()
+        and material.strip().lower() not in _KNOWN_MATERIALS
+        and spec.get("material_verified") is not True
+    ):
+        return {
+            "ok": False,
+            "launched_solver": False,
+            "stage": "spec",
+            "error": (
+                f"材料名 {material} 未经确认。未知名称会被后端换成 vacuum，结果仍可能显示成功。"
+                "下一步：改用 vacuum、air、pec、copper、gold、aluminum、silver、teflon，"
+                "或确认材料库里确有该名称后把 material_verified 设为 true。"
+            ),
+        }
+    return None
+
+
+def _reject_bad_numbers(body: dict, expect) -> dict:
+    if not isinstance(body, dict) or not body.get("ok"):
+        return body
+    values = body.get("s_db") if isinstance(body.get("s_db"), dict) else {}
+    found = result_problems(values, expect if isinstance(expect, dict) else None)
+    if not found:
+        return body
+    failed = dict(body)
+    failed["ok"] = False
+    failed["stage"] = "result"
+    failed["error"] = "结果未通过数值检查：" + " ".join(found)
+    return failed
 
 
 def _protected_project(spec: dict) -> dict | None:

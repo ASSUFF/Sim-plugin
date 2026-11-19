@@ -57,7 +57,7 @@ def _print(payload: dict) -> int:
 
 def _paper(args) -> int:
     if args.command == "new":
-        return _print(create_case(args.folder, args.request, args.solver))
+        return _print(create_case(args.folder, args.request, args.case_solver))
     if args.command == "status":
         return _print(paper_status(args.folder))
     if args.command == "add":
@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     paper_commands = paper.add_subparsers(dest="command", required=True)
     paper_new = paper_commands.add_parser("new", help="Create a folder for one paper reproduction. Does not search or solve")
     paper_new.add_argument("--folder", required=True)
-    paper_new.add_argument("--solver", required=True, choices=["comsol", "hfss", "fdtd"])
+    paper_new.add_argument("--solver", required=True, choices=["comsol", "hfss", "fdtd"], dest="case_solver")
     paper_new.add_argument("--request", required=True)
     paper_add = paper_commands.add_parser("add", help="Save a citation and an optional PDF into the case folder")
     paper_add.add_argument("--folder", required=True)
