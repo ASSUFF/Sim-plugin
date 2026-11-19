@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "prepare":
             return _print(fdtd_prepare(spec))
         if args.command == "run":
-            return _print(fdtd_run(spec))
+            return _print(fdtd_run(spec, spec_dir=Path(args.spec).parent))
         if args.command == "sweep":
             return _print(fdtd_sweep(spec))
         if args.command == "optimize":

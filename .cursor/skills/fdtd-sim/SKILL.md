@@ -14,6 +14,8 @@ For a new task, fill `confirmation.items` before solving. Each item has `name`, 
 
 Lengths are metres and times are seconds. Call `fdtd doctor` first. If `installed` is not true, stop. Do not call `run`, `sweep`, or `optimize`. Set `LUMERICAL_ROOT` when the version directory is not found automatically. It must contain `api/python/lumapi.py`.
 
+`fdtd/examples/crossing_sin.json` was solved on 2026-11-19. At 1550 nm the right-port transmission is 0.4199759615463277 and the bottom-port transmission is -0.4196139481440062. The run is `fdtd/runs/20261119_134300_sin_crossing`. A relative `script_file` is resolved from the spec file's directory.
+
 Examples are in `fdtd/examples`. `sweep` takes 2 to 8 values of one object property, or every combination in `sweep`, at most 8 solves. More than 8 returns `stage` `spec`. A real solve first passes the checklist; a failure returns `stage` `checklist`. If Lumerical is missing, the error names one next step: set `LUMERICAL_ROOT`. `optimize` runs at most 8 times. Use `goal: max` for transmission. Both return `rows` and `best` in the same shape as COMSOL and HFSS. `best` is one row. The score is in `results`, and the parameter name is `object.property`. After a solve, call `fdtd advise` and write the advice from those facts. `best` is only the best result among the computed runs. If it lies at an end of the interval, say that a wider interval may contain a better point. Reports include `assumptions`, taken from checklist items whose `source` is `assumed`.
 
 Copy a source `.fsp` into `fdtd/runs` before editing it. Do not overwrite the user's original project.

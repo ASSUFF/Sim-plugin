@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-19. Version `v0.1.1119.2`.
+Updated 2026-11-19. Version `v0.1.1119.3`.
 
-The version has four parts, for example `v0.1.1119.2`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.1.1119.3`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 

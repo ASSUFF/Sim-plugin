@@ -107,7 +107,14 @@ def set_project(spec: dict, *, runner=subprocess.run) -> dict:
     return result
 
 
-def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True, preflight: bool = True) -> dict:
+def run(
+    spec: dict,
+    *,
+    runner=subprocess.run,
+    check_confirmation: bool = True,
+    preflight: bool = True,
+    spec_dir: str | Path | None = None,
+) -> dict:
     missing = _require_install()
     if missing:
         return missing
@@ -124,7 +131,8 @@ def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True, p
         failed = checklist_rejection(spec, "fdtd")
         if failed:
             return failed
-    return apply_assumptions(_engine("run", spec, runner=runner), assumption_lines(spec))
+    ready = _resolve_script(spec, spec_dir)
+    return apply_assumptions(_engine("run", ready, runner=runner), assumption_lines(spec))
 
 
 def sweep(study: dict, *, runner=subprocess.run) -> dict:
@@ -147,6 +155,21 @@ def sweep(study: dict, *, runner=subprocess.run) -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("points"), list):
         return raw
     return _publish_rows(study, raw, kind="sweep")
+
+
+def _resolve_script(spec: dict, spec_dir: str | Path | None) -> dict:
+    """Point a relative script_file at the directory of the original spec."""
+    if spec_dir is None or not isinstance(spec, dict):
+        return spec
+    name = spec.get("script_file")
+    if not isinstance(name, str) or Path(name).is_file():
+        return spec
+    found = (Path(spec_dir) / name).resolve()
+    if not found.is_file():
+        return spec
+    copied = dict(spec)
+    copied["script_file"] = str(found)
+    return copied
 
 
 def _require_install() -> dict | None:

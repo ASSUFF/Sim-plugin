@@ -7,6 +7,29 @@ from fdtd_plugin.backend import doctor, inspect, run, set_project, sweep
 from fdtd_plugin.optimize import optimize_with
 
 
+def test_relative_script_stays_beside_the_spec(tmp_path: Path, monkeypatch) -> None:
+    script = tmp_path / "model.lsf"
+    script.write_text("select('FDTD');", encoding="utf-8")
+    seen = {}
+
+    def fake_engine(action, spec, *, runner):
+        seen["script"] = spec.get("script_file")
+        return {"ok": True, "launched_solver": False}
+
+    monkeypatch.setattr("fdtd_plugin.backend._engine", fake_engine)
+    monkeypatch.setattr("fdtd_plugin.backend._require_install", lambda: None)
+    monkeypatch.setattr("fdtd_plugin.backend.validate", lambda spec: {"ok": True})
+    result = run(
+        {"name": "m", "script_file": "model.lsf", "simulation": {"dimension": "2D"}},
+        runner=lambda *args, **kwargs: None,
+        check_confirmation=False,
+        preflight=False,
+        spec_dir=tmp_path,
+    )
+    assert result["ok"] is True
+    assert seen["script"] == str(script.resolve())
+
+
 def test_doctor_reports_missing_install_without_launching(monkeypatch) -> None:
     def missing():
         raise FileNotFoundError("lumapi.py was not found")
