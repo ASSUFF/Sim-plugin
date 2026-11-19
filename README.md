@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-19. Version `v0.1.1119.3`.
+Updated 2026-11-19. Version `v0.1.1119.4`.
 
-The version has four parts, for example `v0.1.1119.3`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.1.1119.4`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -31,7 +31,9 @@ Use `comsol` or `fdtd` in place of `hfss` for the other solvers. The shipped exa
 
 Run every command from the **plugin root**, the directory that contains `pyproject.toml`. Nothing in these instructions depends on a fixed drive letter.
 
-Acceptance notes are in `交接.md`. Solver details are in `comsol/使用说明.md`, `hfss/使用说明.md`, and `fdtd/使用说明.md`. Third-party licenses are in `致谢.md`.
+Solver details are in `comsol/使用说明.md`, `hfss/使用说明.md`, and `fdtd/使用说明.md`. Third-party licenses are in `致谢.md`.
+
+`工作记录.md` and `交接.md` are not in the download. After you place the plugin on a computer, write those notes locally from the work done on that computer. Do not reuse paths or acceptance results from another machine.
 
 ## 1. Install
 
