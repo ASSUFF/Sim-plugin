@@ -14,6 +14,7 @@ from pathlib import Path
 
 from comsol_plugin.discover import find_install
 from comsol_plugin.validate import validate_job
+from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import assumption_lines, rejection
 
 _DEFAULT_STOPTIME_S = 600
@@ -21,14 +22,18 @@ _MAX_STOPTIME_S = 7200
 _PARAM_SET = re.compile(r'(param\(\)\.set\(\s*")([^"]+)("\s*,\s*")([^"]*)(")')
 
 
-def _assumptions(spec: str | Path | None) -> list[str]:
+def _spec_data(spec: str | Path | None) -> dict:
     if spec is None:
-        return []
+        return {}
     try:
         data = json.loads(Path(spec).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return []
-    return assumption_lines(data)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _assumptions(spec: str | Path | None) -> list[str]:
+    return assumption_lines(_spec_data(spec))
 
 
 def _confirmed(spec: str | Path | None) -> dict | None:
@@ -86,14 +91,17 @@ def run_java(
         rejected = _confirmed(spec)
         if rejected:
             return rejected
+        failed = checklist_rejection(_spec_data(spec), "comsol")
+        if failed:
+            return failed
 
     install = find_install(install_root)
     if not install.ok or install.comsolcompile is None or install.comsolbatch is None:
         return {
             "ok": False,
-            "stage": "doctor",
             "launched_solver": False,
-            "error": "没有找到 comsolcompile 或 comsolbatch。",
+            "stage": "install",
+            "error": "没有找到 comsolcompile 或 comsolbatch。下一步：设置 COMSOL_HOME 为含有 bin/win64/comsolbatch.exe 的 Multiphysics 目录。",
             "install": install.as_dict(),
         }
 

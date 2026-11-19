@@ -84,6 +84,7 @@ def test_closed_license_port_is_reported() -> None:
     message = license_error("59999@127.0.0.1")
     assert message is not None
     assert "59999@127.0.0.1" in message
+    assert message.count("下一步") == 1
 
 
 def test_inspect_opens_a_copy_of_an_existing_project(tmp_path: Path, monkeypatch) -> None:
@@ -226,6 +227,78 @@ def test_sweep_fills_s21_from_touchstone(tmp_path: Path, monkeypatch) -> None:
     assert results["dB(S(P1,P1))"] == -64.084
     assert results["dB(S(P2,P1))"] == 0.0
     assert results["frequency_ghz"] == 10.0
+
+
+def test_multi_parameter_sweep_stops_above_eight_combinations(tmp_path: Path) -> None:
+    result = sweep(
+        {
+            "base": {"name": "wr90"},
+            "sweep": {
+                "geometry.length_m": [0.02, 0.03, 0.04],
+                "frequency_hz": [8e9, 1e10, 1.2e10],
+            },
+            "metric": {"goal": "min", "key": "dB(S(P1,P1))"},
+        },
+        python=_python(tmp_path),
+        src=tmp_path,
+        runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("solver started")),
+    )
+    assert result["ok"] is False
+    assert result["stage"] == "spec"
+    assert result["launched_solver"] is False
+    assert "8" in result["error"]
+
+
+def test_multi_parameter_sweep_runs_each_combination(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("hfss_plugin.backend._runs_root", lambda: tmp_path)
+    seen = []
+
+    def fake_run(spec, **kwargs):
+        seen.append((spec["geometry"]["length_m"], spec["frequency_hz"]))
+        return {
+            "ok": True,
+            "launched_solver": True,
+            "run_dir": "run",
+            "s_db": {"dB(S(P1,P1))": -spec["geometry"]["length_m"]},
+        }
+
+    monkeypatch.setattr("hfss_plugin.backend.run", fake_run)
+    result = sweep(
+        {
+            "name": "multi",
+            "base": {"name": "wr90", "geometry": {"length_m": 0.03}, "frequency_hz": 1e10},
+            "sweep": {"geometry.length_m": [0.02, 0.03], "frequency_hz": [8e9, 1e10]},
+            "metric": {"goal": "min", "key": "dB(S(P1,P1))"},
+        },
+        runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("engine started")),
+    )
+    assert result["stage"] == "sweep"
+    assert len(result["rows"]) == 4
+    assert seen == [(0.02, 8e9), (0.02, 1e10), (0.03, 8e9), (0.03, 1e10)]
+    assert result["best"]["parameters"]["geometry.length_m"] == 0.03
+
+
+def test_checklist_stops_a_real_launch(monkeypatch) -> None:
+    from sim_plugin.confirm import CORE_ITEMS, confirm
+
+    def explode(*args, **kwargs):
+        raise AssertionError("solver started")
+
+    monkeypatch.setattr("hfss_plugin.backend._engine", explode)
+    monkeypatch.setattr("hfss_plugin.backend.license_error", explode)
+    spec = confirm(
+        {
+            "name": "bare",
+            "geometry": {"kind": "rectangular_waveguide"},
+            "confirmation": {
+                "items": [{"name": name, "source": "assumed", "value": name} for name in CORE_ITEMS]
+            },
+        }
+    )["spec"]
+    result = run(spec)
+    assert result["stage"] == "checklist"
+    assert result["launched_solver"] is False
+    assert "passes" in result["error"]
 
 
 def test_backend_without_json_is_an_error(tmp_path: Path) -> None:

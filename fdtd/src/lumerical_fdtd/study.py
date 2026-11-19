@@ -57,6 +57,16 @@ def validate_study(study):
         return ["study must be a JSON object"]
     if not isinstance(study.get("base"), dict):
         errors.append("base must be a simulation spec")
+    if isinstance(study.get("sweep"), dict):
+        from sim_plugin.sweep import combinations
+
+        _rows, error = combinations(study.get("sweep"))
+        if error:
+            errors.append(error)
+        metric = study.get("metric") or {}
+        if metric.get("goal", "max") not in ("max", "min"):
+            errors.append("metric.goal must be max or min")
+        return errors
     parameter = study.get("parameter")
     if not isinstance(parameter, dict):
         errors.append("parameter must name an object and a property")

@@ -6,6 +6,7 @@ path. doctor, validate, and prepare do not launch Electronics Desktop.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -15,7 +16,9 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
+from sim_plugin.sweep import combinations
 
 _DEFAULT_PROTECTED_PROJECT = Path(r"S:\simulation\HFSS\4mm.aedt")
 
@@ -45,8 +48,8 @@ def _backend_message() -> str:
     src = os.environ.get("HFSS_AEDT_SRC") or "未设置"
     return (
         "没有找到 HFSS 后端。"
-        f"HFSS_AEDT_PYTHON 是 hfss-aedt 所用环境的 python.exe，当前为 {python}。"
-        f"HFSS_AEDT_SRC 是含有 hfss_aedt 包的 src 目录，当前为 {src}。"
+        f"下一步：设置 HFSS_AEDT_PYTHON 为 hfss-aedt 环境的 python.exe（当前为 {python}），"
+        f"并设置 HFSS_AEDT_SRC 为它的 src 目录（当前为 {src}）。"
     )
 
 
@@ -122,15 +125,21 @@ def run(
     src: Path | None = None,
     runner=subprocess.run,
     check_confirmation: bool = True,
+    preflight: bool = True,
 ) -> dict:
     blocked = _protected_project(spec)
     if blocked:
         return blocked
-    if check_confirmation and runner is subprocess.run and not spec.get("setup_only"):
+    solving = runner is subprocess.run and not spec.get("setup_only")
+    if solving and check_confirmation:
         rejected = rejection(spec)
         if rejected:
             return rejected
-    if runner is subprocess.run:
+    if solving and preflight:
+        failed = checklist_rejection(spec, "hfss")
+        if failed:
+            return failed
+    if preflight and runner is subprocess.run:
         license_message = license_error()
         if license_message:
             return {"ok": False, "launched_solver": False, "stage": "license", "error": license_message}
@@ -146,10 +155,15 @@ def sweep(study: dict, *, python: Path | None = None, src: Path | None = None, r
     blocked = _protected_project(base if isinstance(base, dict) else {})
     if blocked:
         return blocked
+    if isinstance(study, dict) and isinstance(study.get("sweep"), dict):
+        return _sweep_many(study, python=python, src=src, runner=runner)
     if runner is subprocess.run:
         rejected = rejection(study if isinstance(study, dict) else {})
         if rejected:
             return rejected
+        failed = checklist_rejection(study, "hfss")
+        if failed:
+            return failed
         license_message = license_error()
         if license_message:
             return {"ok": False, "launched_solver": False, "stage": "license", "error": license_message}
@@ -177,12 +191,7 @@ def license_error(address: str | None = None) -> str | None:
                 return None
         except OSError:
             continue
-    return (
-        "连不上 Ansys 许可证服务 "
-        + raw
-        + "。本机服务名是 Ansys PLE Licensing 2026 R1。"
-        + "服务停止时不会启动 Electronics Desktop。"
-    )
+    return f"连不上 Ansys 许可证服务 {raw}。下一步：启动本机的 Ansys 许可证服务后再求解一次。"
 
 
 def _runs_root() -> Path:
@@ -375,6 +384,99 @@ def _invoke(script: str, payload: dict | None, *, python: Path | None, src: Path
         body["ok"] = False
         body["returncode"] = completed.returncode
     return body
+
+
+def _sweep_many(study: dict, *, python, src, runner) -> dict:
+    combos, error = combinations(study.get("sweep"))
+    if error:
+        return {"ok": False, "launched_solver": False, "stage": "spec", "error": error}
+    if runner is subprocess.run:
+        rejected = rejection(study)
+        if rejected:
+            return rejected
+        failed = checklist_rejection(study, "hfss")
+        if failed:
+            return failed
+        license_message = license_error()
+        if license_message:
+            return {"ok": False, "launched_solver": False, "stage": "license", "error": license_message}
+    metric = study.get("metric") if isinstance(study.get("metric"), dict) else {}
+    expression = metric.get("key") if isinstance(metric.get("key"), str) and metric["key"].strip() else "dB(S(P2,P1))"
+    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else "max"
+    rows = []
+    launched = False
+    for combo in combos:
+        spec = copy.deepcopy(study.get("base") if isinstance(study.get("base"), dict) else {})
+        for key, value in combo.items():
+            _assign(spec, key, value)
+        spec["name"] = _combo_name(study, combo)
+        result = run(spec, python=python, src=src, runner=runner, check_confirmation=False, preflight=False)
+        launched = launched or bool(result.get("launched_solver"))
+        s_db = result.get("s_db") if isinstance(result.get("s_db"), dict) else {}
+        results = {
+            key: value
+            for key, value in s_db.items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        }
+        rows.append(
+            {
+                "parameters": combo,
+                "ok": bool(result.get("ok")) and expression in results,
+                "results": results,
+                "work_dir": result.get("run_dir"),
+                "error": result.get("error"),
+            }
+        )
+    return _write_rows(study, rows, expression, sense, launched, "sweep")
+
+
+def _assign(spec: dict, key: str, value) -> None:
+    if "." not in key:
+        spec[key] = value
+        return
+    node = spec
+    parts = key.split(".")
+    for part in parts[:-1]:
+        child = node.get(part)
+        if not isinstance(child, dict):
+            child = {}
+            node[part] = child
+        node = child
+    node[parts[-1]] = value
+
+
+def _combo_name(study: dict, combo: dict) -> str:
+    label = str(study.get("name") or "hfss")
+    suffix = "_".join(f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value) for value in combo.values())
+    return f"{label}_{suffix}"[:80]
+
+
+def _write_rows(study: dict, rows: list[dict], expression: str, sense: str, launched: bool, kind: str) -> dict:
+    best = _best_row(rows, expression, sense)
+    label = study.get("name") or (study.get("base") or {}).get("name") or "hfss"
+    folder = _runs_root() / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{_safe_name(str(label))}_{kind}"
+    folder.mkdir(parents=True, exist_ok=True)
+    report = {
+        "ok": bool(rows) and all(row["ok"] for row in rows) and best is not None,
+        "stage": kind,
+        "launched_solver": launched,
+        "goal": {"expression": expression, "sense": sense},
+        "rows": rows,
+        "best": best,
+        "run_count": len(rows),
+        "max_runs": 8,
+        "work_dir": str(folder),
+        "assumptions": assumption_lines(study),
+        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
+    }
+    if best is None and rows and rows[-1].get("error"):
+        report["error"] = rows[-1]["error"]
+    elif best is None:
+        report["error"] = f"结果里没有可用的数值 {expression}。"
+    report_path = folder / "report.json"
+    report["report"] = str(report_path)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
 
 
 def _publish_sweep(study: dict, raw: dict) -> dict:

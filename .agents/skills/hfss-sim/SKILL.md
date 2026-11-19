@@ -14,7 +14,7 @@ For a new task, fill `confirmation.items` before solving. Each item has `name`, 
 
 Lengths are metres and frequency is hertz. For S21 use `dB(S(P2,P1))` and `goal: max`. For S11 use `dB(S(P1,P1))` and `goal: min`.
 
-Call `hfss doctor` first. If port `1055@localhost` is closed, do not start a solve. `hfss run` solves one spec. `hfss sweep` compares 2 to 8 values of one parameter. `hfss optimize` searches one numeric path, at most 8 times. After a solve, call `hfss advise` and write the advice from those facts.
+Call `hfss doctor` first. If port `1055@localhost` is closed, do not start a solve. `hfss run` solves one spec. `hfss sweep` compares one parameter, or every combination in `sweep`, at most 8 solves. More than 8 returns `stage` `spec`. A real solve first passes the checklist; a failure returns `stage` `checklist`. A license failure returns `stage` `license` and one next step. Do not start the license service again. `hfss optimize` searches one numeric path, at most 8 times. After a solve, call `hfss advise` and write the advice from those facts.
 
 The WR-90 example is `hfss/examples/wr90.json`. At 10 GHz and a length of 0.03 m, S21 is 0.0 dB and S11 is -64.084 dB. The length search example is `hfss/examples/wr90_length_optimize.json`. The length sweep example is `hfss/examples/wr90_length_sweep.json`.
 

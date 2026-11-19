@@ -17,7 +17,8 @@ def doctor() -> dict:
     payload = install.as_dict()
     payload["launched_solver"] = False
     if not install.ok:
-        payload["error"] = "没有找到 COMSOL。可设置环境变量 COMSOL_HOME 指向 Multiphysics 目录。"
+        payload["error"] = "没有找到 COMSOL。下一步：设置 COMSOL_HOME 为 Multiphysics 目录。"
+        payload["stage"] = "install"
     return payload
 
 

@@ -102,6 +102,55 @@ def test_sweep_uses_rows_and_records_assumptions(monkeypatch, tmp_path: Path) ->
     assert saved["assumptions"] == ["region: 6 um by 4 um"]
 
 
+def test_multi_parameter_sweep_stops_above_eight_combinations() -> None:
+    result = sweep(
+        {
+            "base": {"name": "wg"},
+            "sweep": {"waveguide.y span": [1, 2, 3], "waveguide.x span": [4, 5, 6]},
+            "metric": {"goal": "max", "export": "T"},
+        }
+    )
+    assert result["stage"] == "spec"
+    assert result["launched_solver"] is False
+    assert "8" in result["error"]
+
+
+def test_multi_parameter_sweep_overrides_each_combination(monkeypatch, tmp_path: Path) -> None:
+    class Install:
+        python = "python"
+
+        def as_dict(self):
+            return {}
+
+    monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+    monkeypatch.setenv("LUMERICAL_FDTD_RUNS", str(tmp_path))
+    seen = []
+
+    def fake_run(spec, **kwargs):
+        seen.append([(item["object"], item["property"], item["value"]) for item in spec["overrides"]])
+        width = spec["overrides"][0]["value"]
+        return {
+            "ok": True,
+            "launched_solver": True,
+            "exports": [{"name": "T", "data": {"fields": {"T": {"values": [width]}}}}],
+        }
+
+    monkeypatch.setattr("fdtd_plugin.backend.run", fake_run)
+    result = sweep(
+        {
+            "name": "wg",
+            "base": {"name": "wg", "simulation": {"dimension": "2D"}},
+            "sweep": {"waveguide.y span": [2e-7, 5e-7], "monitor.y": [1e-7, 2e-7]},
+            "metric": {"goal": "max", "export": "T"},
+        },
+        runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("engine started")),
+    )
+    assert result["stage"] == "sweep"
+    assert len(seen) == 4
+    assert result["rows"][0]["parameters"] == {"waveguide.y span": 2e-7, "monitor.y": 1e-7}
+    assert result["best"]["parameters"]["waveguide.y span"] == 5e-7
+
+
 def test_unconfirmed_run_does_not_launch(monkeypatch) -> None:
     class Install:
         python = "python"

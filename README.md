@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-19. Version `v0.1.1119.1`.
+Updated 2026-11-19. Version `v0.1.1119.2`.
 
-The version has four parts, for example `v0.1.1119.1`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.1.1119.2`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -74,10 +74,12 @@ Both variables are required. When either is missing, or the file it names is not
 | Edit a copy of an existing project | `comsol set --project model.mph --spec changes.json` | `hfss set --project model.aedt --spec changes.json` | `fdtd set --project model.fsp --spec changes.json` |
 | Solve with given parameters | `comsol run` | `hfss run` | `fdtd run` |
 | Change parameters | edit `value` in the spec and run again | edit the spec and run again | edit the spec or `overrides` and run again |
-| Sweep | at most 8 combinations | 2–8 values of one parameter | 2–8 values of one object property |
+| Sweep | at most 8 combinations | at most 8 combinations; the older single-parameter form still works | at most 8 combinations; the older single-parameter form still works |
 | Pick the best computed point | `best` from a sweep, and `optimize` | `optimize`, at most 8 runs | `optimize`, at most 8 runs |
 | Facts for advice | `comsol advise` | `hfss advise` | `fdtd advise` |
 | Build a model | look up API names, write Java, validate, compile, and batch-run | describe a waveguide in JSON | describe geometry, sources, and monitors in JSON |
+
+HFSS and FDTD multi-parameter sweeps use a `sweep` object. Each parameter has 2 to 8 values, and the full set of combinations cannot exceed 8. A larger set returns `stage` `spec` and does not launch a solver. The older single `parameter` plus `values` form still works. Before a solve, the same checklist reviews mesh detail, adaptive passes, convergence, simulation time, and the number of frequency points. A failure returns `stage` `checklist`. An install or license failure names exactly one next step.
 
 An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` before it is opened. The original file is left unchanged. `inspect` does not solve. `set` writes the changes only to the copy. To solve an existing COMSOL model, use `run --project` and put the study tag, such as `std1`, in `study`. HFSS `inspect` returns objects and solution setups, not design variables; put the values to change in `variables`.
 
@@ -116,7 +118,7 @@ Every command prints JSON.
 | | `comsol advise --report REPORT.json` | List facts for advice | No |
 | HFSS | `hfss doctor` / `validate` / `prepare` | Find, check, or fill defaults | No |
 | | `hfss run --spec X.json` | Solve | Yes |
-| | `hfss sweep --spec X.json` | 2–8 values of one parameter | Yes |
+| | `hfss sweep --spec X.json` | at most 8 combinations | Yes |
 | | `hfss optimize --spec X.json` | One numeric path, at most 8 | Yes |
 | | `hfss advise --report REPORT.json` | List facts for advice | No |
 | FDTD | `fdtd doctor` / `validate` / `prepare` | Find, check, or fill defaults | No |

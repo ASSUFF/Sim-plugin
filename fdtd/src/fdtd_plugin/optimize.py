@@ -11,6 +11,7 @@ from pathlib import Path
 from lumerical_fdtd.study import score_fdtd_payload
 
 from fdtd_plugin.backend import _prepare_env, _stamp_point_reports, best_row, doctor, rows_from_points, run
+from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection
 
 MAX_RUNS = 8
@@ -33,6 +34,9 @@ def optimize(study: dict) -> dict:
             "error": status.get("error") or "本机没有找到 Lumerical FDTD。",
         }
     lines = assumption_lines(study)
+    failed = checklist_rejection(study, "fdtd")
+    if failed:
+        return failed
     return _search(
         plan,
         lambda spec: _evaluated(spec, lines),
@@ -50,7 +54,7 @@ def optimize_with(study: dict, evaluate) -> dict:
 
 
 def _evaluated(spec: dict, lines: list[str]) -> dict:
-    result = run(spec, check_confirmation=False)
+    result = run(spec, check_confirmation=False, preflight=False)
     if isinstance(result, dict):
         apply_assumptions(result, lines)
     return result

@@ -13,7 +13,9 @@ from pathlib import Path
 from lumerical_fdtd.discover import find_install, runs_dir
 from lumerical_fdtd.study import prepare_spec, validate_study
 from lumerical_fdtd.validate import validate_spec
+from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
+from sim_plugin.sweep import combinations
 
 ENGINE = Path(__file__).resolve().parents[1] / "lumerical_fdtd" / "engine.py"
 
@@ -105,7 +107,7 @@ def set_project(spec: dict, *, runner=subprocess.run) -> dict:
     return result
 
 
-def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True) -> dict:
+def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True, preflight: bool = True) -> dict:
     missing = _require_install()
     if missing:
         return missing
@@ -113,14 +115,21 @@ def run(spec: dict, *, runner=subprocess.run, check_confirmation: bool = True) -
     if not checked["ok"]:
         checked["stage"] = "validate"
         return checked
-    if check_confirmation and runner is subprocess.run and not spec.get("setup_only"):
+    solving = runner is subprocess.run and not spec.get("setup_only")
+    if solving and check_confirmation:
         rejected = rejection(spec)
         if rejected:
             return rejected
+    if solving and preflight:
+        failed = checklist_rejection(spec, "fdtd")
+        if failed:
+            return failed
     return apply_assumptions(_engine("run", spec, runner=runner), assumption_lines(spec))
 
 
 def sweep(study: dict, *, runner=subprocess.run) -> dict:
+    if isinstance(study, dict) and isinstance(study.get("sweep"), dict):
+        return _sweep_many(study, runner=runner)
     errors = validate_study(study)
     if errors:
         return {"ok": False, "launched_solver": False, "stage": "spec", "errors": errors}
@@ -131,6 +140,9 @@ def sweep(study: dict, *, runner=subprocess.run) -> dict:
         rejected = rejection(study)
         if rejected:
             return rejected
+        failed = checklist_rejection(study, "fdtd")
+        if failed:
+            return failed
     raw = _engine("study", study, runner=runner)
     if not isinstance(raw, dict) or not isinstance(raw.get("points"), list):
         return raw
@@ -241,6 +253,62 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
         body = {"ok": False, "raw": body}
     body["launched_solver"] = bool(body.get("run_dir") or body.get("points"))
     return body
+
+
+def _sweep_many(study: dict, *, runner) -> dict:
+    combos, error = combinations(study.get("sweep"))
+    if error:
+        return {"ok": False, "launched_solver": False, "stage": "spec", "error": error}
+    if not isinstance(study.get("base"), dict):
+        return {"ok": False, "launched_solver": False, "stage": "spec", "error": "base 需要是一次 FDTD 规格。"}
+    if runner is subprocess.run:
+        rejected = rejection(study)
+        if rejected:
+            return rejected
+    missing = _require_install()
+    if missing:
+        return missing
+    if runner is subprocess.run:
+        failed = checklist_rejection(study, "fdtd")
+        if failed:
+            return failed
+    metric = study.get("metric") if isinstance(study.get("metric"), dict) else {}
+    expression = metric.get("export") if isinstance(metric.get("export"), str) and metric["export"].strip() else "T"
+    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else "max"
+    points = []
+    launched = False
+    for combo in combos:
+        spec = dict(study["base"])
+        spec["overrides"] = list(spec.get("overrides") or [])
+        for key, value in combo.items():
+            object_name, _, prop = key.partition(".")
+            spec["overrides"].append({"object": object_name, "property": prop or key, "value": value})
+        spec["name"] = str(study.get("name") or "fdtd")
+        result = run(spec, runner=runner, check_confirmation=False, preflight=False)
+        launched = launched or bool(result.get("launched_solver"))
+        from lumerical_fdtd.study import score_fdtd_payload
+
+        points.append(
+            {
+                "value": combo,
+                "ok": bool(result.get("ok")),
+                "score": score_fdtd_payload(result, metric),
+                "run_dir": result.get("run_dir"),
+                "error": result.get("error"),
+            }
+        )
+    raw = {"launched_solver": launched, "points": points, "goal": sense}
+    published = _publish_rows({**study, "parameter": {"object": "sweep", "property": "values"}}, raw, kind="sweep")
+    for row, combo in zip(published.get("rows") or [], combos):
+        row["parameters"] = combo
+    if isinstance(published.get("best"), dict):
+        index = next((i for i, row in enumerate(published["rows"]) if row is published["best"]), None)
+        if index is not None:
+            published["best"] = published["rows"][index]
+    report_path = published.get("report")
+    if isinstance(report_path, str):
+        Path(report_path).write_text(json.dumps(published, ensure_ascii=False, indent=2), encoding="utf-8")
+    return published
 
 
 def rows_from_points(points: list, parameter_name: str, expression: str) -> list[dict]:

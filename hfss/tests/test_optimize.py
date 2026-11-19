@@ -28,7 +28,13 @@ def test_optimize_picks_lower_reflection_and_refines(monkeypatch, tmp_path: Path
     study = confirm(
         {
             "name": "wr90_length",
-            "base": {"name": "wr90", "geometry": {"length_m": 0.03}},
+            "base": {
+                "name": "wr90",
+                "geometry": {"length_m": 0.03},
+                "max_passes": 4,
+                "max_delta_s": 0.02,
+                "frequency_hz": 1e10,
+            },
             "parameter": {"path": "geometry.length_m"},
             "optimize": {"min": 0.02, "max": 0.04, "max_runs": 4},
             "metric": {"goal": "min", "key": "dB(S(P1,P1))"},

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from hfss_plugin.backend import _protected_project, _runs_root, license_error, run
+from sim_plugin.checklist import rejection as checklist_rejection
 from sim_plugin.confirm import apply_assumptions, assumption_lines
 
 MAX_RUNS = 8
@@ -32,12 +33,15 @@ def optimize(study: dict, *, runner=None, python=None, src=None) -> dict:
         rejected = rejection(study)
         if rejected:
             return rejected
+        failed = checklist_rejection(study, "hfss")
+        if failed:
+            return failed
         message = license_error()
         if message:
             return {"ok": False, "launched_solver": False, "stage": "license", "error": message}
 
     def evaluate(spec: dict) -> dict:
-        kwargs = {"check_confirmation": False}
+        kwargs = {"check_confirmation": False, "preflight": False}
         if runner is not None:
             kwargs["runner"] = runner
         if python is not None:

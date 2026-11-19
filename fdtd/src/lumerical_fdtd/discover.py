@@ -114,7 +114,7 @@ def find_install():
         root = normalize_root(override)
         if not _has_lumapi(root):
             raise FileNotFoundError(
-                "LUMERICAL_ROOT does not contain api/python/lumapi.py: %s" % root
+                "LUMERICAL_ROOT 里没有 api/python/lumapi.py。下一步：把 LUMERICAL_ROOT 改到含有该文件的版本目录。"
             )
         return Install(root, find_python(root))
     seen = set()
@@ -127,8 +127,7 @@ def find_install():
         if _has_lumapi(root):
             return Install(root, find_python(root))
     raise FileNotFoundError(
-        "Ansys Lumerical was not found. Set LUMERICAL_ROOT to the version "
-        "directory that contains api/python/lumapi.py."
+        "没有找到 Lumerical。下一步：设置 LUMERICAL_ROOT 为含有 api/python/lumapi.py 的版本目录。"
     )
 
 
