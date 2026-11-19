@@ -30,6 +30,7 @@ from fdtd_plugin.backend import sweep as fdtd_sweep_payload
 from fdtd_plugin.backend import validate as fdtd_validate_payload
 from fdtd_plugin.optimize import optimize as fdtd_optimize_payload
 from sim_plugin.confirm import confirm as confirm_spec
+from sim_plugin.paper import add_paper, compare as compare_paper, create_case, set_spec, set_targets, status as paper_status
 
 try:
     from mcp.server.mcpserver import MCPServer as Server
@@ -296,6 +297,59 @@ def fdtd_confirm(spec_json: str) -> str:
     if spec.get("ok") is False and "confirmation" not in spec and "errors" not in spec:
         return _json(spec)
     return _json(confirm_spec(spec))
+
+
+@mcp.tool()
+def paper_new(folder: str, solver: str, request: str) -> str:
+    """Create a folder for one paper reproduction. Does not search or launch a solver."""
+    return _json(create_case(folder, request, solver))
+
+
+@mcp.tool()
+def paper_add(folder: str, citation_json: str, pdf: str = "") -> str:
+    """Save a citation and an optional local PDF into the case folder. Does not download."""
+    citation = _load_object(citation_json)
+    if citation.get("ok") is False and "title" not in citation:
+        return _json(citation)
+    return _json(add_paper(folder, citation, pdf or None))
+
+
+@mcp.tool()
+def paper_targets(folder: str, targets_json: str) -> str:
+    """Save the numerical results stated by the paper. Does not launch a solver."""
+    targets = _load_object(targets_json)
+    if targets.get("ok") is False and "metrics" not in targets:
+        return _json(targets)
+    return _json(set_targets(folder, targets))
+
+
+@mcp.tool()
+def paper_spec(folder: str, spec_json: str) -> str:
+    """Save the solver spec extracted from the paper. Does not launch a solver."""
+    spec = _load_object(spec_json)
+    if spec.get("ok") is False and "name" not in spec and "parameters" not in spec:
+        return _json(spec)
+    return _json(set_spec(folder, spec))
+
+
+@mcp.tool()
+def paper_state(folder: str) -> str:
+    """List which paper, targets, spec, result, and comparison are still missing."""
+    return _json(paper_status(folder))
+
+
+@mcp.tool()
+def paper_compare(folder: str, result_json: str = "", report: str = "", mapping_json: str = "") -> str:
+    """Compare local numbers with the paper. Does not launch a solver."""
+    simulated = _load_object(result_json) if result_json else {}
+    if result_json and simulated.get("ok") is False and "metrics" not in simulated:
+        return _json(simulated)
+    mapping = None
+    if mapping_json:
+        mapping = _load_object(mapping_json)
+        if mapping.get("ok") is False:
+            return _json(mapping)
+    return _json(compare_paper(folder, simulated, report or None, mapping))
 
 
 def main() -> None:

@@ -33,6 +33,7 @@ from fdtd_plugin.backend import sweep as fdtd_sweep
 from fdtd_plugin.backend import validate as fdtd_validate
 from fdtd_plugin.optimize import optimize as fdtd_optimize
 from sim_plugin.confirm import confirm, rejection
+from sim_plugin.paper import add_paper, compare, create_case, set_spec, set_targets, status as paper_status
 
 
 def _read_json(path: str) -> dict:
@@ -52,6 +53,37 @@ def _print(payload: dict) -> int:
     json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return 0 if payload.get("ok") else 1
+
+
+def _paper(args) -> int:
+    if args.command == "new":
+        return _print(create_case(args.folder, args.request, args.solver))
+    if args.command == "status":
+        return _print(paper_status(args.folder))
+    if args.command == "add":
+        citation = _read_json(args.citation)
+        if citation.get("ok") is False and "title" not in citation:
+            return _print(citation)
+        return _print(add_paper(args.folder, citation, args.pdf))
+    if args.command == "targets":
+        targets = _read_json(args.targets)
+        if targets.get("ok") is False and "metrics" not in targets:
+            return _print(targets)
+        return _print(set_targets(args.folder, targets))
+    if args.command == "spec":
+        spec = _read_json(args.spec)
+        if spec.get("ok") is False and "stage" not in spec and "name" not in spec and "parameters" not in spec:
+            return _print(spec)
+        return _print(set_spec(args.folder, spec))
+    simulated = _read_json(args.result) if args.result else {}
+    if args.result and simulated.get("ok") is False and "metrics" not in simulated:
+        return _print(simulated)
+    mapping = None
+    if args.map:
+        mapping = _read_json(args.map)
+        if mapping.get("ok") is False:
+            return _print(mapping)
+    return _print(compare(args.folder, simulated, report=args.report, mapping=mapping))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -142,7 +174,33 @@ def main(argv: list[str] | None = None) -> int:
     fdtd_confirm = fdtd_commands.add_parser("confirm", help="Stamp an FDTD spec. Does not launch Lumerical")
     fdtd_confirm.add_argument("--spec", required=True)
 
+    paper = solvers.add_parser("paper")
+    paper_commands = paper.add_subparsers(dest="command", required=True)
+    paper_new = paper_commands.add_parser("new", help="Create a folder for one paper reproduction. Does not search or solve")
+    paper_new.add_argument("--folder", required=True)
+    paper_new.add_argument("--solver", required=True, choices=["comsol", "hfss", "fdtd"])
+    paper_new.add_argument("--request", required=True)
+    paper_add = paper_commands.add_parser("add", help="Save a citation and an optional PDF into the case folder")
+    paper_add.add_argument("--folder", required=True)
+    paper_add.add_argument("--citation", required=True)
+    paper_add.add_argument("--pdf")
+    paper_targets = paper_commands.add_parser("targets", help="Save the numerical results stated by the paper")
+    paper_targets.add_argument("--folder", required=True)
+    paper_targets.add_argument("--json", required=True, dest="targets")
+    paper_spec = paper_commands.add_parser("spec", help="Save the solver spec extracted from the paper")
+    paper_spec.add_argument("--folder", required=True)
+    paper_spec.add_argument("--spec", required=True)
+    paper_state = paper_commands.add_parser("status", help="List which reproduction steps are still missing")
+    paper_state.add_argument("--folder", required=True)
+    paper_compare = paper_commands.add_parser("compare", help="Compare local results with the paper. Does not launch a solver")
+    paper_compare.add_argument("--folder", required=True)
+    paper_compare.add_argument("--result")
+    paper_compare.add_argument("--report")
+    paper_compare.add_argument("--map")
+
     args = parser.parse_args(argv)
+    if args.solver == "paper":
+        return _paper(args)
     if args.solver == "hfss":
         if args.command == "doctor":
             return _print(hfss_doctor())

@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-19. Version `v0.1.1119.4`.
+Updated 2026-11-19. Version `v0.2.1119.1`.
 
-The version has four parts, for example `v0.1.1119.4`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1119.1`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -84,6 +84,12 @@ Both variables are required. When either is missing, or the file it names is not
 HFSS and FDTD multi-parameter sweeps use a `sweep` object. Each parameter has 2 to 8 values, and the full set of combinations cannot exceed 8. A larger set returns `stage` `spec` and does not launch a solver. The older single `parameter` plus `values` form still works. Before a solve, the same checklist reviews mesh detail, adaptive passes, convergence, simulation time, and the number of frequency points. A failure returns `stage` `checklist`. An install or license failure names exactly one next step.
 
 An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` before it is opened. The original file is left unchanged. `inspect` does not solve. `set` writes the changes only to the copy. To solve an existing COMSOL model, use `run --project` and put the study tag, such as `std1`, in `study`. HFSS `inspect` returns objects and solution setups, not design variables; put the values to change in `variables`.
+
+## Reproduce a paper
+
+Given a request, an AI can find one matching paper and reproduce its COMSOL, HFSS, or FDTD simulation in one folder. The folder holds the paper, the extracted spec, the local results, and the comparison.
+
+`paper new`, `add`, `targets`, `spec`, `status`, and `compare` do not launch a solver. Save only a PDF the user supplied or one that is openly available. Do not bypass a paywall. Confirm the extracted spec before calling the existing solver command. `compare` writes `comparison.json` and `汇报.md` beside the paper. Without a tolerance it records the difference and does not call the results the same.
 
 Results are JSON. The process exits with code 1 when `ok` is false. `best` means the best result among the runs that were computed. When that point is at the end of the interval, a wider interval may contain a better point. The advice text is written by the current AI from the `advise` facts.
 
