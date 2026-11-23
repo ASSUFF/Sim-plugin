@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -47,6 +49,39 @@ def test_missing_backend_python_does_not_launch(tmp_path: Path, monkeypatch) -> 
     assert "HFSS_AEDT_PYTHON" in result["error"]
     assert "HFSS_AEDT_SRC" in result["error"]
     assert "simulation" not in result["error"]
+
+
+def test_unset_env_uses_the_bundled_backend(monkeypatch) -> None:
+    monkeypatch.delenv("HFSS_AEDT_PYTHON", raising=False)
+    monkeypatch.delenv("HFSS_AEDT_SRC", raising=False)
+    seen = {}
+
+    def runner(command, **kwargs):
+        seen["command"] = command
+        seen["env"] = kwargs["env"]
+        return SimpleNamespace(returncode=0, stdout='{"ok": true, "version": "2024.2"}\n', stderr="")
+
+    result = doctor(runner=runner)
+    bundled = Path(seen["env"]["PYTHONPATH"].split(os.pathsep)[0])
+    assert result["ok"] is True
+    assert Path(seen["command"][0]) == Path(sys.executable)
+    assert (bundled / "hfss_aedt" / "engine.py").is_file()
+    assert "hfss_aedt.discover" in seen["command"][2]
+
+
+def test_discover_reads_versioned_ansysem_root(tmp_path: Path, monkeypatch) -> None:
+    win = tmp_path / "Win64"
+    win.mkdir()
+    (win / "ansysedt.exe").write_text("", encoding="utf-8")
+    for key in list(os.environ):
+        if key == "AEDT_ROOT" or key.startswith("ANSYSEM_ROOT"):
+            monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("ANSYSEM_ROOT251", str(win))
+    from hfss_aedt.discover import find_install
+
+    install = find_install()
+    assert install.version == "2025.1"
+    assert install.win64 == win.resolve()
 
 
 def test_doctor_reads_backend_json(tmp_path: Path) -> None:

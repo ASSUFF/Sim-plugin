@@ -200,6 +200,160 @@ def _numbered_script(script):
     return "\n".join("%4d | %s" % (index, line) for index, line in enumerate(script.splitlines(), 1))
 
 
+class ScriptError(Exception):
+    """One Lumerical statement failed. index and line are 1-based."""
+
+    def __init__(self, index, line, text, cause):
+        self.index = index
+        self.line = line
+        self.text = text
+        self.cause = cause
+        super().__init__(str(cause))
+
+
+def script_statements(script):
+    """Split a Lumerical script into statements.
+
+    A statement ends at ';' or a newline when parentheses, brackets, and braces
+    are balanced and the cursor is outside a string or comment. A for/if block
+    in braces stays one statement. Returns {"text", "line"} with a 1-based line.
+    """
+    statements = []
+    buf = []
+    start_line = 1
+    line = 1
+    depth_paren = 0
+    depth_brack = 0
+    depth_brace = 0
+    quote = None
+    started = False
+    i = 0
+    length = len(script)
+
+    def flush():
+        nonlocal buf, started
+        text = "".join(buf).strip()
+        buf = []
+        started = False
+        if text:
+            statements.append({"text": text, "line": start_line})
+
+    while i < length:
+        ch = script[i]
+        nxt = script[i + 1] if i + 1 < length else ""
+        if quote:
+            buf.append(ch)
+            if ch == "\\" and nxt:
+                buf.append(nxt)
+                if nxt == "\n":
+                    line += 1
+                i += 2
+                continue
+            if ch == "\n":
+                line += 1
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch == "#":
+            while i < length and script[i] != "\n":
+                i += 1
+            continue
+        if ch in ("'", '"'):
+            if not started:
+                start_line = line
+                started = True
+            quote = ch
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == "(":
+            depth_paren += 1
+        elif ch == ")":
+            depth_paren = max(0, depth_paren - 1)
+        elif ch == "[":
+            depth_brack += 1
+        elif ch == "]":
+            depth_brack = max(0, depth_brack - 1)
+        elif ch == "{":
+            depth_brace += 1
+        elif ch == "}":
+            depth_brace = max(0, depth_brace - 1)
+        balanced = depth_paren == 0 and depth_brack == 0 and depth_brace == 0
+        if not started and ch not in " \t\r\n":
+            start_line = line
+            started = True
+        if ch == ";" and balanced:
+            buf.append(ch)
+            flush()
+            i += 1
+            continue
+        if ch == "\n":
+            line += 1
+            if balanced:
+                flush()
+            else:
+                buf.append(ch)
+            i += 1
+            continue
+        if ch != "\r":
+            buf.append(ch)
+        i += 1
+    flush()
+    return statements
+
+
+def flatten_matrix_literals(text):
+    """Join a multiline [ ... ] literal onto one line. Semicolons inside stay."""
+    out = []
+    depth = 0
+    quote = None
+    i = 0
+    length = len(text)
+    while i < length:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < length else ""
+        if quote:
+            out.append(ch)
+            if ch == "\\" and nxt:
+                out.append(nxt)
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]" and depth:
+            depth -= 1
+        if depth and ch in "\r\n":
+            if out and out[-1] not in " \t":
+                out.append(" ")
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def eval_script(session, script):
+    """Run each statement. A matrix literal is one line before it is sent."""
+    for index, item in enumerate(script_statements(script), 1):
+        text = flatten_matrix_literals(item["text"]).strip()
+        if not text:
+            continue
+        try:
+            session.eval(text)
+        except Exception as exc:
+            raise ScriptError(index, item["line"], text, exc) from exc
+
+
 def store_dataset(data, folder, stem):
     folder.mkdir(parents=True, exist_ok=True)
     summary = {"stem": stem}
@@ -393,7 +547,7 @@ def run_spec(spec, spec_path=None, emit_result=True):
         apply_overrides(session, spec.get("overrides") or [])
         script = load_script(spec, spec_path)
         if script:
-            session.eval(script)
+            eval_script(session, script)
         session.save(str(saved))
         payload["project_copy"] = str(saved)
         if not spec.get("setup_only", False):
@@ -421,7 +575,13 @@ def run_spec(spec, spec_path=None, emit_result=True):
     except Exception as exc:
         if saved.is_file() and "project_copy" not in payload:
             payload["project_copy"] = str(saved)
-        payload["error"] = str(exc)
+        if isinstance(exc, ScriptError):
+            payload["error"] = "脚本第 %d 条语句失败（原文第 %d 行）：%s" % (exc.index, exc.line, exc.cause)
+            payload["statement_index"] = exc.index
+            payload["statement_line"] = exc.line
+            payload["statement"] = exc.text[:500]
+        else:
+            payload["error"] = str(exc)
         if script:
             payload["script_lines"] = _numbered_script(script)
         if "Session not found" in str(exc):

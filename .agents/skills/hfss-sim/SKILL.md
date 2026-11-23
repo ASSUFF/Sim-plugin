@@ -18,7 +18,7 @@ Call `hfss doctor` first. If port `1055@localhost` is closed, do not start a sol
 
 The WR-90 example is `hfss/examples/wr90.json`. At 10 GHz and a length of 0.03 m, S21 is 0.0 dB and S11 is -64.084 dB. The length search example is `hfss/examples/wr90_length_optimize.json`. The length sweep example is `hfss/examples/wr90_length_sweep.json`.
 
-`HFSS_AEDT_PYTHON` is the Python executable of the hfss-aedt environment, and `HFSS_AEDT_SRC` is that checkout's `src` directory. Both are required. If a command returns `stage` `backend`, tell the user those two variables and stop. Do not look for a path from another computer.
+The rectangular-waveguide backend ships in `hfss/src/hfss_aedt`. `doctor` uses the plugin Python and does not need PyAEDT. A solve needs `import ansys.aedt.core`. If that fails, the error's next step is `pip install pyaedt` (or `pip install -e ".[hfss]"`). Set `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC` only to replace that backend. If `stage` is `backend`, follow the error's next step and stop. Do not look for a path from another computer.
 
 `best` is only the best result among the computed runs. If it lies at an end of the interval, say that a wider interval may contain a better point.
 

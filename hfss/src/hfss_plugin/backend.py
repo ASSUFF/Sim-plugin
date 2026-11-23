@@ -1,7 +1,9 @@
-"""Call an hfss-aedt checkout in its own environment.
+"""Call the bundled hfss_aedt backend, or one named by the environment.
 
-Set HFSS_AEDT_PYTHON and HFSS_AEDT_SRC to that checkout. There is no built-in
-path. doctor, validate, and prepare do not launch Electronics Desktop.
+HFSS_AEDT_PYTHON and HFSS_AEDT_SRC replace the interpreter and the src
+directory. When they are unset, the plugin uses its own Python and hfss/src.
+doctor, validate, and prepare do not import PyAEDT and do not launch
+Electronics Desktop. A solve does need PyAEDT.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -29,12 +32,26 @@ def _env_path(name: str) -> Path | None:
     return Path(raw) if raw else None
 
 
+def _bundled_src() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
 def _backend_python() -> Path | None:
-    return _env_path("HFSS_AEDT_PYTHON")
+    override = _env_path("HFSS_AEDT_PYTHON")
+    if override is not None:
+        return override
+    return Path(sys.executable)
 
 
 def _backend_src() -> Path | None:
-    return _env_path("HFSS_AEDT_SRC")
+    override = _env_path("HFSS_AEDT_SRC")
+    if override is not None:
+        return override
+    bundled = _bundled_src()
+    engine = _engine_path(bundled)
+    if engine is not None and engine.is_file():
+        return bundled
+    return None
 
 
 def _engine_path(source: Path | None = None) -> Path | None:
@@ -49,9 +66,32 @@ def _backend_message() -> str:
     src = os.environ.get("HFSS_AEDT_SRC") or "未设置"
     return (
         "没有找到 HFSS 后端。"
-        f"下一步：设置 HFSS_AEDT_PYTHON 为 hfss-aedt 环境的 python.exe（当前为 {python}），"
-        f"并设置 HFSS_AEDT_SRC 为它的 src 目录（当前为 {src}）。"
+        f"下一步：HFSS_AEDT_PYTHON（当前为 {python}）和 HFSS_AEDT_SRC（当前为 {src}）"
+        "若指向了不存在的文件，请去掉这两个变量，改用插件自带的 hfss/src/hfss_aedt。"
+        "求解还需要当前 Python 能 import ansys.aedt.core；没有时执行 pip install pyaedt。"
     )
+
+
+def _pyaedt_problem(executable: Path) -> dict | None:
+    completed = subprocess.run(
+        [str(executable), "-c", "import ansys.aedt.core"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if completed.returncode == 0:
+        return None
+    return {
+        "ok": False,
+        "launched_solver": False,
+        "stage": "backend",
+        "error": (
+            "HFSS 后端已在 hfss/src/hfss_aedt，但当前 Python 不能 import ansys.aedt.core。"
+            "下一步：在插件环境执行 pip install pyaedt，或把 HFSS_AEDT_PYTHON 设为已经安装 PyAEDT 的 python.exe。"
+        ),
+    }
 
 
 def _backend_problem(executable: Path | None, engine: Path | None, *, need_engine: bool) -> dict | None:
@@ -333,6 +373,10 @@ def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, r
     problem = _backend_problem(executable, engine, need_engine=True)
     if problem:
         return problem
+    if runner is subprocess.run:
+        missing = _pyaedt_problem(executable)
+        if missing:
+            return missing
     inbox = _runs_root() / "_inbox"
     inbox.mkdir(parents=True, exist_ok=True)
     spec_path = inbox / f"{action}.json"
@@ -382,6 +426,11 @@ def _call(args: list[str], *, python: Path | None, src: Path | None, runner) -> 
     if problem:
         problem["solved"] = False
         return problem
+    if runner is subprocess.run:
+        missing = _pyaedt_problem(executable)
+        if missing:
+            missing["solved"] = False
+            return missing
     env = os.environ.copy()
     env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
     env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))

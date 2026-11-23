@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-19. Version `v0.2.1119.2`.
+Updated 2026-11-23. Version `v0.2.1123.1`.
 
-The version has four parts, for example `v0.2.1119.2`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1123.1`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -56,14 +56,13 @@ These checks do not launch a solver. `ok: true` means the application was found:
 
 The install path in the JSON belongs to that computer. Another machine, or another install folder, produces a different path.
 
-HFSS solving also needs a separate `hfss-aedt` checkout and its Python environment:
+The HFSS rectangular-waveguide backend is included at `hfss/src/hfss_aedt`. `doctor`, `validate`, and `prepare` use the plugin's own Python and do not need another package. Solving needs PyAEDT:
 
 ```text
-HFSS_AEDT_PYTHON  python.exe from that environment
-HFSS_AEDT_SRC     the hfss-aedt src directory
+.venv\Scripts\python.exe -m pip install pyaedt
 ```
 
-Both variables are required. When either is missing, or the file it names is not there, an HFSS command returns `stage` `backend` and reports the current value of `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC`. The plugin does not use a path from a particular computer. If Lumerical is not in a default location, set `LUMERICAL_ROOT` to the version directory that contains `api/python/lumapi.py`.
+`pip install -e ".[hfss]"` installs the same package. If the current Python cannot `import ansys.aedt.core`, a solve returns `stage` `backend` and names that install command as the next step. Set `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC` only to replace the bundled backend. A path that is not a file also returns `stage` `backend`. The plugin does not use a path from a particular computer. If Lumerical is not in a default location, set `LUMERICAL_ROOT` to the version directory that contains `api/python/lumapi.py`.
 
 ## 2. What it can do
 
@@ -184,7 +183,7 @@ Look at `ok`, `launched_solver`, `work_dir` or `run_dir`, `results`, `rows`, `be
 | What you see | Check first |
 |---|---|
 | `doctor` has `ok: false` | Whether the application is installed. COMSOL uses the registry, HFSS uses `ANSYSEM_ROOT242`, and FDTD uses `LUMERICAL_ROOT` |
-| HFSS cannot find its backend interpreter | Set `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC` |
+| HFSS returns `stage` `backend` | Follow the one next step in the error. Install PyAEDT with `pip install pyaedt`, or unset `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC` when those paths are not files |
 | `stage` is `license` | Whether the license port is open |
 | Too many combinations | Use fewer values. The limit is 8 |
 | An AI tool cannot see the tools | Reload MCP and point the interpreter at this plugin's `.venv` |
