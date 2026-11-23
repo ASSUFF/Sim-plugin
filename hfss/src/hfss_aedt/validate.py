@@ -20,7 +20,17 @@ KNOWN = {
     "variables",
 }
 SOLUTION_TYPES = {"Modal", "Terminal", "Eigenmode"}
-GEOM_KEYS = {"kind", "a_m", "b_m", "length_m", "material"}
+GEOM_KEYS = {
+    "kind",
+    "a_m",
+    "b_m",
+    "length_m",
+    "material",
+    "modes",
+    "wall",
+    "wall_conductivity_s_m",
+}
+WALLS = {"pec", "copper", "gold", "aluminum", "silver", "finite"}
 
 
 def _positive(value):
@@ -67,6 +77,16 @@ def validate_spec(spec):
                     errors.append("geometry.%s must be a positive length in metres" % key)
             if "material" in geometry and not isinstance(geometry["material"], str):
                 errors.append("geometry.material must be a string")
+            modes = geometry.get("modes", 1)
+            if isinstance(modes, bool) or not isinstance(modes, int) or not 1 <= modes <= 4:
+                errors.append("geometry.modes must be an integer from 1 to 4")
+            wall = geometry.get("wall", "pec")
+            if not isinstance(wall, str) or wall.strip().lower() not in WALLS:
+                errors.append("geometry.wall must be pec, copper, gold, aluminum, silver, or finite")
+            elif wall.strip().lower() == "finite" and not _positive(geometry.get("wall_conductivity_s_m")):
+                errors.append("geometry.wall finite needs a positive wall_conductivity_s_m in S/m")
+            elif "wall_conductivity_s_m" in geometry and not _positive(geometry.get("wall_conductivity_s_m")):
+                errors.append("geometry.wall_conductivity_s_m must be a positive number in S/m")
             if _positive(geometry.get("a_m")) and _positive(geometry.get("b_m")):
                 if geometry["a_m"] < geometry["b_m"]:
                     warnings.append("geometry.a_m is smaller than b_m; TE10 uses a as the broad wall")

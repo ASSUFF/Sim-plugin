@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-23. Version `v0.2.1123.1`.
+Updated 2026-11-23. Version `v0.2.1123.2`.
 
-The version has four parts, for example `v0.2.1123.1`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1123.2`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -78,7 +78,7 @@ The HFSS rectangular-waveguide backend is included at `hfss/src/hfss_aedt`. `doc
 | Sweep | at most 8 combinations | at most 8 combinations; the older single-parameter form still works | at most 8 combinations; the older single-parameter form still works |
 | Pick the best computed point | `best` from a sweep, and `optimize` | `optimize`, at most 8 runs | `optimize`, at most 8 runs |
 | Facts for advice | `comsol advise` | `hfss advise` | `fdtd advise` |
-| Build a model | look up API names, write Java, validate, compile, and batch-run | describe a waveguide in JSON | describe geometry, sources, and monitors in JSON |
+| Build a model | look up API names, write Java, validate, compile, and batch-run. `EwfdGuide.java` is a straight parallel-plate waveguide | a straight rectangular waveguide in JSON. The default excites one mode and uses perfect-conductor walls. `geometry.modes` is 1 to 4. `geometry.wall` may be `pec`, `copper`, `gold`, `aluminum`, `silver`, or `finite` with `wall_conductivity_s_m`. The result is S-parameters, not Neff or Z0 | describe geometry, sources, and monitors in JSON |
 
 HFSS and FDTD multi-parameter sweeps use a `sweep` object. Each parameter has 2 to 8 values, and the full set of combinations cannot exceed 8. A larger set returns `stage` `spec` and does not launch a solver. The older single `parameter` plus `values` form still works. Before a solve, the same checklist reviews mesh detail, adaptive passes, convergence, simulation time, and the number of frequency points. A failure returns `stage` `checklist`. An install or license failure names exactly one next step.
 

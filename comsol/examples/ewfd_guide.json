@@ -1,0 +1,60 @@
+{
+  "parameters": {
+    "a": {
+      "value": "10[mm]"
+    },
+    "L": {
+      "value": "40[mm]"
+    },
+    "f0": {
+      "value": "20[GHz]"
+    },
+    "n_fill": {
+      "value": "1"
+    }
+  },
+  "exports": [
+    "S21_dB",
+    "S11_dB"
+  ],
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "20 GHz，高于平行板 TE1 截止 15 GHz"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "二维截面，两端数值端口，其余边界留给默认理想导体"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "板间距 10 mm，长度 40 mm"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "填充折射率 1"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "网格 hauto 3"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "单个频点"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "S21_dB 与 S11_dB"
+      }
+    ],
+    "token": "853b065bf5a89825675584788e2fe2557ebfde20b0730dec2126e76113374b05"
+  }
+}

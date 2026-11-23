@@ -24,6 +24,8 @@ The steady plate example is `comsol/examples/SteadyHeat.java`. `T_cold` is on th
 
 The optical-heating example is `comsol/examples/OptoHeat.java`.
 
+The wave-optics example is `comsol/examples/EwfdGuide.java`. It is a 2D parallel-plate waveguide: plate spacing `a`, length `L`, one frequency `f0`, and fill index `n_fill`. The physics tag is `ewfd`, created as `ElectromagneticWavesFrequencyDomain`. Each port tag has at least five characters (`port1`, `port2`); a shorter tag can crash COMSOL 6.4. A numeric port uses `PortType` `Numeric`, `PortModeType` `TE`, `PortModeNumber` `1`, `PortExcitation` `on` or `off`, `Pin` `1[W/m]`, and `PortName` `1` or `2`. Do not set `beta` to `ewfd.k`. Before the frequency step, add one `BoundaryModeAnalysis` per port with `modeFreq` `f0`, `PortName` matching that port, `neigs` `1`, and `shift` equal to the adjacent refractive index. Without that step the port solver has no frequency and returns NaN. The excited port is the inlet. Leave the default `pec1` alone: its selection is not editable, and `active(false)` is rejected. Do not call `selection("dest")` on a `PeriodicCondition`; that name is not a destination selection. This example does not use a periodic boundary. Give the fill a `RefractiveIndex` material model and set `n` to `n_fill`. On the default wave-equation feature `wee1`, set `DisplacementFieldModel` to `RefractiveIndex`. After the solve, read `ewfd.S21dB` and `ewfd.S11dB`.
+
 ## Sweep and optimize
 
 - `comsol sweep` runs every combination in `sweep`. Each parameter has 2 to 8 values, and the total number of combinations is at most 8.

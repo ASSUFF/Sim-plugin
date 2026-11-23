@@ -1,3 +1,3 @@
 """Unified entry point for the local simulation plugins."""
 
-__version__ = "0.2.1123.1"
+__version__ = "0.2.1123.2"

@@ -70,6 +70,50 @@ def _mm(metres):
     return float(metres) * 1000.0
 
 
+_WALL_CONDUCTIVITY = {
+    "copper": 5.8e7,
+    "gold": 4.1e7,
+    "aluminum": 3.8e7,
+    "silver": 6.1e7,
+}
+
+
+def port_modes(geometry):
+    modes = geometry.get("modes", 1) if isinstance(geometry, dict) else 1
+    if isinstance(modes, bool) or not isinstance(modes, int):
+        return 1
+    return modes
+
+
+def wall_conductivity(geometry):
+    """Return S/m for a finite-conductivity wall, or None when the wall stays PEC."""
+    if not isinstance(geometry, dict):
+        return None
+    wall = str(geometry.get("wall") or "pec").strip().lower()
+    if wall == "pec":
+        return None
+    if _positive_number(geometry.get("wall_conductivity_s_m")):
+        return float(geometry["wall_conductivity_s_m"])
+    return _WALL_CONDUCTIVITY.get(wall)
+
+
+def _positive_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+def s_expressions(modes):
+    """Keep the single-mode names. Extra modes use HFSS's P1:n form."""
+    if modes <= 1:
+        return ["dB(S(P1,P1))", "dB(S(P2,P1))", "dB(S(P1,P2))", "dB(S(P2,P2))"]
+    names = []
+    for receiver in ("P1", "P2"):
+        for source in ("P1", "P2"):
+            for mode_out in range(1, modes + 1):
+                for mode_in in range(1, modes + 1):
+                    names.append("dB(S(%s:%d,%s:%d))" % (receiver, mode_out, source, mode_in))
+    return names
+
+
 def build_waveguide(hfss, geometry):
     length = _mm(geometry["length_m"])
     width = _mm(geometry["a_m"])
@@ -81,7 +125,9 @@ def build_waveguide(hfss, geometry):
         name="waveguide",
         material=geometry.get("material") or "vacuum",
     )
+    modes = port_modes(geometry)
     ports = []
+    wall_faces = []
     for face in box.faces:
         center = face.center
         x = float(center[0])
@@ -90,19 +136,36 @@ def build_waveguide(hfss, geometry):
         elif abs(x - length) < 1.0e-3:
             name = "P2"
         else:
+            wall_faces.append(face)
             continue
         hfss.wave_port(
             assignment=face,
             name=name,
             integration_line=hfss.axis_directions.ZPos,
-            modes=1,
+            modes=modes,
             renormalize=False,
             characteristic_impedance="Zpi",
         )
         ports.append(name)
     if len(ports) != 2:
         raise RuntimeError("expected wave ports on both ends, found %s" % ports)
-    return {"a_mm": width, "b_mm": height, "length_mm": length, "ports": ports}
+    sigma = wall_conductivity(geometry)
+    if sigma is not None and wall_faces:
+        hfss.assign_finite_conductivity(
+            assignment=wall_faces,
+            conductivity=sigma,
+            permittivity=1,
+            is_internal=False,
+            name="WallCond",
+        )
+    return {
+        "a_mm": width,
+        "b_mm": height,
+        "length_mm": length,
+        "ports": ports,
+        "modes": modes,
+        "wall_conductivity_s_m": sigma,
+    }
 
 
 def create_frequency_setup(hfss, spec):
@@ -119,8 +182,8 @@ def create_frequency_setup(hfss, spec):
     return setup.name if hasattr(setup, "name") else "Setup1"
 
 
-def solution_rows(hfss, setup_name):
-    expressions = ["dB(S(P1,P1))", "dB(S(P2,P1))", "dB(S(P1,P2))", "dB(S(P2,P2))"]
+def solution_rows(hfss, setup_name, modes=1):
+    expressions = s_expressions(modes)
     data = hfss.post.get_solution_data(expressions=expressions, setup_sweep_name="%s : LastAdaptive" % setup_name)
     rows = {}
     if not data:
@@ -262,7 +325,7 @@ def run_spec(spec, spec_path=None, emit_result=True):
             app.analyze_setup(setup_name)
             app.save_project()
             try:
-                payload["s_db"] = solution_rows(app, setup_name)
+                payload["s_db"] = solution_rows(app, setup_name, port_modes(spec.get("geometry") or {}))
             except Exception as exc:
                 payload["export_errors"] = [{"error": str(exc)}]
             touchstone = folder / ("%s.s2p" % safe[:40])
@@ -270,7 +333,7 @@ def run_spec(spec, spec_path=None, emit_result=True):
                 exported = app.export_touchstone(setup=setup_name, output_file=str(touchstone))
                 if exported:
                     payload["touchstone"] = str(exported)
-                    if not payload.get("s_db"):
+                    if not payload.get("s_db") and port_modes(spec.get("geometry") or {}) <= 1:
                         payload["s_db"] = touchstone_db(Path(str(exported)))
             except Exception as exc:
                 payload.setdefault("export_errors", []).append({"error": str(exc)})

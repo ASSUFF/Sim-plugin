@@ -274,9 +274,16 @@ def _dig(value, path: str):
 
 
 def _number(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool):
         return None
-    return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
 
 
 def _case(folder: str | Path) -> Path | dict:

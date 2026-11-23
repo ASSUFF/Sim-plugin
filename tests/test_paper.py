@@ -72,6 +72,34 @@ def test_report_path_supplies_the_simulated_value(tmp_path: Path) -> None:
     assert result["rows"][0]["within"] is True
 
 
+def test_comsol_report_stores_numbers_as_strings(tmp_path: Path) -> None:
+    folder = tmp_path / "case"
+    create_case(folder, "加热器温度", "comsol")
+    set_targets(
+        folder,
+        {
+            "metrics": [
+                {"name": "T_heater_max_K", "paper": 411, "tolerance": 20, "unit": "K"},
+                {"name": "note", "paper": 1, "tolerance": 0},
+            ]
+        },
+    )
+    report = tmp_path / "report.json"
+    report.write_text(
+        json.dumps({"results": {"T_heater_max_K": "415.24", "note": "not-a-number"}}),
+        encoding="utf-8",
+    )
+    result = compare(
+        folder,
+        {},
+        report=report,
+        mapping={"T_heater_max_K": "results.T_heater_max_K", "note": "results.note"},
+    )
+    assert result["rows"][0]["simulated"] == 415.24
+    assert result["rows"][0]["within"] is True
+    assert result["rows"][1]["simulated"] is None
+
+
 def test_non_finite_result_is_rejected() -> None:
     from sim_plugin.result_check import problems
 
