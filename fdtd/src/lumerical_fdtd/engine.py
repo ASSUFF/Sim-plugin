@@ -354,6 +354,23 @@ def eval_script(session, script):
             raise ScriptError(index, item["line"], text, exc) from exc
 
 
+def _write_curve_csv(path, array):
+    import csv
+
+    flat = array.reshape(-1)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        if _np.iscomplexobj(array):
+            writer.writerow(["index", "real", "imag"])
+            for index, value in enumerate(flat):
+                writer.writerow([index, float(value.real), float(value.imag)])
+        else:
+            writer.writerow(["index", "value"])
+            for index, value in enumerate(flat):
+                writer.writerow([index, float(value)])
+    return str(path)
+
+
 def store_dataset(data, folder, stem):
     folder.mkdir(parents=True, exist_ok=True)
     summary = {"stem": stem}
@@ -366,6 +383,8 @@ def store_dataset(data, folder, stem):
         _np.save(str(path), array)
         info = {"file": str(path), "shape": list(array.shape), "dtype": str(array.dtype)}
         numeric = _np.issubdtype(array.dtype, _np.number)
+        if numeric and array.ndim == 1 and array.size >= 2:
+            info["csv"] = _write_curve_csv(folder / ("%s_%s.csv" % (stem, key)), array)
         if array.size <= 32 and numeric:
             if _np.iscomplexobj(array):
                 info["real"] = _np.real(array).astype(float).reshape(-1).tolist()
@@ -548,6 +567,9 @@ def run_spec(spec, spec_path=None, emit_result=True):
         script = load_script(spec, spec_path)
         if script:
             eval_script(session, script)
+        points = spec.get("frequency_points")
+        if isinstance(points, int) and not isinstance(points, bool):
+            session.setglobalmonitor("frequency points", int(points))
         session.save(str(saved))
         payload["project_copy"] = str(saved)
         if not spec.get("setup_only", False):

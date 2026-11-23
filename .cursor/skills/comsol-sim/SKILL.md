@@ -30,7 +30,7 @@ The wave-optics example is `comsol/examples/EwfdGuide.java`. It is a 2D parallel
 
 - `comsol sweep` runs every combination in `sweep`. Each parameter has 2 to 8 values, and the total number of combinations is at most 8.
 - `comsol optimize` searches one parameter from coarse to fine. `optimize.max_runs` is 2 to 8.
-- The goal value is numeric. `goal.sense` is `min` or `max`.
+- The goal value is numeric. `goal.sense` is `min` or `max`. A sweep or optimize spec needs top-level `exports`, and `goal.expression` must be one of those names.
 - Tell the user that `best` is only the best computed run. Include `note` when it is present. If the best point is at an end of the interval, say that a wider interval may contain a better point.
 
 ## Advice

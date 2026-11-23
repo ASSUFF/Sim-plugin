@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-23. Version `v0.2.1123.2`.
+Updated 2026-11-23. Version `v0.2.1123.3`.
 
-The version has four parts, for example `v0.2.1123.2`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1123.3`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -83,6 +83,20 @@ The HFSS rectangular-waveguide backend is included at `hfss/src/hfss_aedt`. `doc
 HFSS and FDTD multi-parameter sweeps use a `sweep` object. Each parameter has 2 to 8 values, and the full set of combinations cannot exceed 8. A larger set returns `stage` `spec` and does not launch a solver. The older single `parameter` plus `values` form still works. Before a solve, the same checklist reviews mesh detail, adaptive passes, convergence, simulation time, and the number of frequency points. A failure returns `stage` `checklist`. An install or license failure names exactly one next step.
 
 An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` before it is opened. The original file is left unchanged. `inspect` does not solve. `set` writes the changes only to the copy. To solve an existing COMSOL model, use `run --project` and put the study tag, such as `std1`, in `study`. HFSS `inspect` returns objects and solution setups, not design variables; put the values to change in `variables`.
+
+## Spec fields that are easy to miss
+
+| Field | Where | If it is missing |
+|---|---|---|
+| `material_verified: true` | Top of an HFSS spec when the material is not one of `vacuum`, `air`, `pec`, `copper`, `gold`, `aluminum`, `silver`, `teflon` | The solve is refused. An unknown name would otherwise be replaced with `vacuum` |
+| `exports` | Top of a COMSOL sweep or optimize spec | `goal.expression` must be one of these result names |
+| `goal.expression`, `goal.sense` | COMSOL sweep or optimize. `sense` is `min` or `max` | There is no `best` without a goal |
+| `frequency_hz` | The single adaptive frequency for a new HFSS waveguide, in hertz | Required for a new waveguide |
+| `frequencies_hz` | A list of 1 to 21 frequencies checked before an HFSS solve | A longer list is rejected. This list is not an in-solver spectrum |
+| `frequency_sweep` | One HFSS solve: `start_hz`, `stop_hz`, `count` from 2 to 201, `type` defaulting to `Discrete` | The adaptive frequency stays `frequency_hz`. The curve is `s_spectrum.csv`. It does not use the 8-run limit |
+| `frequency_points` | Top of an FDTD spec, an integer from 2 to 2001 | Written to the global monitor after the script. Omitted, the script decides; if the script also omits it, Lumerical uses about 5 points |
+
+An FDTD curve of at least two samples is also written as CSV. Above 512 samples the JSON keeps that path and the minimum and maximum magnitude.
 
 ## Reproduce a paper
 

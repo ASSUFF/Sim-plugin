@@ -182,9 +182,72 @@ def create_frequency_setup(hfss, spec):
     return setup.name if hasattr(setup, "name") else "Setup1"
 
 
-def solution_rows(hfss, setup_name, modes=1):
+def add_frequency_sweep(hfss, spec, setup_name):
+    """Add one in-solver frequency sweep. This is not counted against the 8-run limit."""
+    sweep = spec.get("frequency_sweep")
+    if not isinstance(sweep, dict):
+        return None
+    hfss.create_linear_count_sweep(
+        setup=setup_name,
+        unit="GHz",
+        start_frequency=float(sweep["start_hz"]) / 1.0e9,
+        stop_frequency=float(sweep["stop_hz"]) / 1.0e9,
+        num_of_freq_points=int(sweep["count"]),
+        name="Sweep1",
+        save_fields=False,
+        sweep_type=str(sweep.get("type") or "Discrete"),
+    )
+    return "Sweep1"
+
+
+def spectrum_frequencies(spec, length):
+    sweep = spec.get("frequency_sweep") if isinstance(spec, dict) else None
+    if not isinstance(sweep, dict) or sweep.get("count") != length:
+        return None
+    start = float(sweep["start_hz"])
+    stop = float(sweep["stop_hz"])
+    if length == 1:
+        return [start]
+    step = (stop - start) / (length - 1)
+    return [start + step * index for index in range(length)]
+
+
+def write_spectrum_csv(folder, spec, rows):
+    import csv
+
+    lists = {key: value for key, value in rows.items() if isinstance(value, list) and value}
+    if not lists:
+        return None
+    length = len(next(iter(lists.values())))
+    if any(len(value) != length for value in lists.values()):
+        return None
+    frequencies = spectrum_frequencies(spec, length)
+    path = folder / "s_spectrum.csv"
+    headers = ["frequency_hz" if frequencies else "index", *lists]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(headers)
+        for index in range(length):
+            lead = "%.12g" % frequencies[index] if frequencies else index
+            writer.writerow([lead, *["%.12g" % lists[key][index] for key in lists]])
+    return str(path)
+
+
+def solution_rows(hfss, setup_name, modes=1, sweep_name=None):
     expressions = s_expressions(modes)
-    data = hfss.post.get_solution_data(expressions=expressions, setup_sweep_name="%s : LastAdaptive" % setup_name)
+    names = []
+    if sweep_name:
+        names.append("%s : %s" % (setup_name, sweep_name))
+    names.append("%s : LastAdaptive" % setup_name)
+    data = None
+    for name in names:
+        try:
+            found = hfss.post.get_solution_data(expressions=expressions, setup_sweep_name=name)
+        except Exception:
+            found = None
+        if found:
+            data = found
+            break
     rows = {}
     if not data:
         return rows
@@ -194,7 +257,8 @@ def solution_rows(hfss, setup_name, modes=1):
         except Exception:
             values = None
         if values:
-            rows[expr] = float(values[0])
+            numbers = [float(item) for item in values]
+            rows[expr] = numbers[0] if len(numbers) == 1 else numbers
     return rows
 
 
@@ -312,6 +376,9 @@ def run_spec(spec, spec_path=None, emit_result=True):
             if not spec.get("setup_only", False):
                 setup_name = create_frequency_setup(app, spec)
                 payload["setup"] = setup_name
+                sweep_name = add_frequency_sweep(app, spec, setup_name)
+                if sweep_name:
+                    payload["frequency_sweep"] = sweep_name
         app.save_project()
         payload["project_copy"] = str(project_path)
         if not spec.get("setup_only", False):
@@ -323,9 +390,20 @@ def run_spec(spec, spec_path=None, emit_result=True):
                 setup_name = names[0]
                 payload["setup"] = setup_name
             app.analyze_setup(setup_name)
+            sweep_name = payload.get("frequency_sweep")
+            if sweep_name:
+                app.analyze_setup("%s : %s" % (setup_name, sweep_name))
             app.save_project()
             try:
-                payload["s_db"] = solution_rows(app, setup_name, port_modes(spec.get("geometry") or {}))
+                payload["s_db"] = solution_rows(
+                    app,
+                    setup_name,
+                    port_modes(spec.get("geometry") or {}),
+                    sweep_name,
+                )
+                spectrum = write_spectrum_csv(folder, spec, payload["s_db"])
+                if spectrum:
+                    payload["spectrum_csv"] = spectrum
             except Exception as exc:
                 payload["export_errors"] = [{"error": str(exc)}]
             touchstone = folder / ("%s.s2p" % safe[:40])

@@ -30,6 +30,50 @@ def test_relative_script_stays_beside_the_spec(tmp_path: Path, monkeypatch) -> N
     assert seen["script"] == str(script.resolve())
 
 
+def test_curve_csv_keeps_every_sample(tmp_path: Path, monkeypatch) -> None:
+    from lumerical_fdtd import engine
+
+    class _Numpy:
+        @staticmethod
+        def iscomplexobj(_array):
+            return False
+
+    monkeypatch.setattr(engine, "_np", _Numpy)
+    path = tmp_path / "T_value.csv"
+
+    class _Column:
+        def reshape(self, _shape):
+            return list(range(600))
+
+    engine._write_curve_csv(path, _Column())
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "index,value"
+    assert lines[1] == "0,0.0"
+    assert lines[-1] == "599,599.0"
+    assert len(lines) == 601
+
+
+def test_doctor_names_the_python_that_lacks_numpy(monkeypatch) -> None:
+    class _Install:
+        python = "S:/lumerical/python.exe"
+
+        def as_dict(self):
+            return {"python": self.python, "root": "S:/lumerical"}
+
+    monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: _Install())
+
+    def runner(command, **_kwargs):
+        assert command[0] == "S:/lumerical/python.exe"
+        return SimpleNamespace(returncode=1, stdout="", stderr="No module named numpy")
+
+    result = doctor(runner=runner)
+    assert result["ok"] is False
+    assert result["installed"] is True
+    assert result["python_source"] == "lumerical"
+    assert "Lumerical 自带 Python" in result["error"]
+    assert "LUMERICAL_PYTHON" in result["error"]
+
+
 def test_scalar_transmission_is_numeric(tmp_path: Path) -> None:
     from lumerical_fdtd.engine import store_dataset
 
@@ -112,6 +156,7 @@ def test_sweep_uses_rows_and_records_assumptions(monkeypatch, tmp_path: Path) ->
             return {}
 
     monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+    monkeypatch.setattr("fdtd_plugin.backend._imports_numpy", lambda *_args, **_kwargs: True)
     monkeypatch.setenv("LUMERICAL_FDTD_RUNS", str(tmp_path))
     solved = tmp_path / "solved"
     solved.mkdir()
@@ -174,6 +219,7 @@ def test_multi_parameter_sweep_overrides_each_combination(monkeypatch, tmp_path:
             return {}
 
     monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+    monkeypatch.setattr("fdtd_plugin.backend._imports_numpy", lambda *_args, **_kwargs: True)
     monkeypatch.setenv("LUMERICAL_FDTD_RUNS", str(tmp_path))
     seen = []
 
@@ -210,6 +256,7 @@ def test_unconfirmed_run_does_not_launch(monkeypatch) -> None:
             return {}
 
     monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+    monkeypatch.setattr("fdtd_plugin.backend._imports_numpy", lambda *_args, **_kwargs: True)
 
     def explode(*args, **kwargs):
         raise AssertionError("solver started")
@@ -234,6 +281,7 @@ def test_run_uses_the_lumerical_interpreter(monkeypatch, tmp_path: Path) -> None
             return {"python": str(self.python), "lumapi": "lumapi.py", "root": "Lumerical", "api_dir": "api", "bin_dir": "bin", "solver": None}
 
     monkeypatch.setattr("fdtd_plugin.backend.find_install", lambda: Install())
+    monkeypatch.setattr("fdtd_plugin.backend._imports_numpy", lambda *_args, **_kwargs: True)
     seen = {}
 
     def runner(command, **kwargs):

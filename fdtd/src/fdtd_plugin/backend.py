@@ -31,7 +31,7 @@ def _prepare_env() -> None:
     os.environ.setdefault("LUMERICAL_FDTD_RUNS", str(Path(__file__).resolve().parents[2] / "runs"))
 
 
-def doctor() -> dict:
+def doctor(*, runner=subprocess.run) -> dict:
     _prepare_env()
     try:
         install = find_install()
@@ -44,6 +44,7 @@ def doctor() -> dict:
             "error": str(exc),
         }
     payload = install.as_dict()
+    python, source = _engine_python(install)
     payload.update(
         {
             "ok": True,
@@ -51,9 +52,49 @@ def doctor() -> dict:
             "software": "Ansys Lumerical FDTD",
             "installed": True,
             "runs_dir": str(runs_dir()),
+            "python_source": source,
         }
     )
+    if not _imports_numpy(python, runner):
+        payload["ok"] = False
+        payload["stage"] = "install"
+        payload["error"] = _numpy_error(python, source)
     return payload
+
+
+def _engine_python(install) -> tuple[str, str]:
+    override = os.environ.get("LUMERICAL_PYTHON")
+    if override:
+        return override, "LUMERICAL_PYTHON"
+    if getattr(install, "python", None):
+        return str(install.python), "lumerical"
+    return sys.executable, "plugin"
+
+
+def _imports_numpy(python: str, runner) -> bool:
+    completed = runner(
+        [python, "-c", "import numpy"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def _numpy_error(python: str, source: str) -> str:
+    if source == "lumerical":
+        where = "Lumerical 自带 Python"
+    elif source == "LUMERICAL_PYTHON":
+        where = "LUMERICAL_PYTHON 指定的 Python"
+    else:
+        where = "插件虚拟环境的 Python。没有找到 Lumerical 自带解释器，所以退回了这里"
+    return (
+        "用来跑 FDTD 引擎的解释器不能 import numpy。当前是%s：%s。"
+        "下一步：把 LUMERICAL_PYTHON 设为该安装目录里能 import numpy 的 python.exe。"
+        % (where, python)
+    )
 
 
 def validate(spec: dict) -> dict:
@@ -181,12 +222,12 @@ def _resolve_script(spec: dict, spec_dir: str | Path | None) -> dict:
 
 def _require_install() -> dict | None:
     status = doctor()
-    if status.get("installed"):
+    if status.get("installed") and status.get("ok") is not False:
         return None
     return {
         "ok": False,
         "launched_solver": False,
-        "stage": "install",
+        "stage": status.get("stage") or "install",
         "error": status.get("error") or "本机没有找到 Lumerical FDTD。",
     }
 

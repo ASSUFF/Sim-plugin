@@ -21,6 +21,7 @@ KNOWN = {
     "script_file",
     "exports",
     "confirmation",
+    "frequency_points",
 }
 
 
@@ -68,6 +69,10 @@ def validate_spec(spec):
                     errors.append("global_source.%s must be positive" % key)
     if "simulation" in spec and not isinstance(spec["simulation"], dict):
         errors.append("simulation must be an object")
+    if "frequency_points" in spec:
+        points = spec["frequency_points"]
+        if isinstance(points, bool) or not isinstance(points, int) or not 2 <= points <= 2001:
+            errors.append("frequency_points must be an integer from 2 to 2001")
     commands = spec.get("commands") or []
     if "commands" in spec and not isinstance(commands, list):
         errors.append("commands must be an array")

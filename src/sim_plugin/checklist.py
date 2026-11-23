@@ -70,6 +70,17 @@ def _fdtd(spec: dict) -> list[dict]:
 
 
 def _frequency_points(spec: dict, *, required: bool) -> dict:
+    sweep = spec.get("frequency_sweep")
+    if isinstance(sweep, dict):
+        return _range(
+            "frequency_points",
+            sweep.get("count"),
+            2,
+            201,
+            "一次求解内的频点数 frequency_sweep.count",
+            required=True,
+            skipped="",
+        )
     if isinstance(spec.get("frequencies_hz"), list):
         return _range("frequency_points", len(spec["frequencies_hz"]), 1, 21, "频点数量", required=True, skipped="")
     if isinstance(spec.get("frequency_hz"), (int, float)) and not isinstance(spec.get("frequency_hz"), bool):

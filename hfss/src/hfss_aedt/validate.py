@@ -13,6 +13,7 @@ KNOWN = {
     "design",
     "solution_type",
     "frequency_hz",
+    "frequency_sweep",
     "max_passes",
     "max_delta_s",
     "run_root",
@@ -55,6 +56,7 @@ def validate_spec(spec):
         errors.append("solution_type must be Modal, Terminal, or Eigenmode")
     if "frequency_hz" in spec and not _positive(spec["frequency_hz"]):
         errors.append("frequency_hz must be a positive number in hertz")
+    _frequency_sweep(spec, errors)
     if "max_passes" in spec:
         value = spec["max_passes"]
         if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 20:
@@ -100,6 +102,26 @@ def validate_spec(spec):
     if geometry is not None and "frequency_hz" not in spec and not spec.get("setup_only"):
         errors.append("frequency_hz is required to solve a new waveguide")
     return errors, warnings
+
+
+def _frequency_sweep(spec, errors):
+    sweep = spec.get("frequency_sweep")
+    if sweep is None:
+        return
+    if not isinstance(sweep, dict):
+        errors.append("frequency_sweep must be an object")
+        return
+    for key in ("start_hz", "stop_hz"):
+        if not _positive(sweep.get(key)):
+            errors.append("frequency_sweep.%s must be a positive frequency in hertz" % key)
+    count = sweep.get("count")
+    if isinstance(count, bool) or not isinstance(count, int) or not 2 <= count <= 201:
+        errors.append("frequency_sweep.count must be an integer from 2 to 201")
+    if _positive(sweep.get("start_hz")) and _positive(sweep.get("stop_hz")) and sweep["stop_hz"] <= sweep["start_hz"]:
+        errors.append("frequency_sweep.stop_hz must be greater than start_hz")
+    kind = sweep.get("type", "Discrete")
+    if kind not in ("Discrete", "Interpolating", "Fast"):
+        errors.append("frequency_sweep.type must be Discrete, Interpolating, or Fast")
 
 
 def main(argv=None):

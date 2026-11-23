@@ -47,6 +47,35 @@ def test_finite_wall_without_conductivity_is_rejected() -> None:
     assert any("wall_conductivity_s_m" in error for error in errors)
 
 
+def test_in_solver_frequency_sweep_is_not_eight_runs(tmp_path) -> None:
+    from sim_plugin.checklist import rejection
+    from hfss_aedt.engine import spectrum_frequencies, write_spectrum_csv
+
+    spec = _guide()
+    spec["max_passes"] = 4
+    spec["max_delta_s"] = 0.02
+    spec["frequency_sweep"] = {"start_hz": 8.0e9, "stop_hz": 12.0e9, "count": 41}
+    errors, _warnings = validate_spec(spec)
+    assert errors == []
+    assert rejection(spec, "hfss") is None
+    spec["frequency_sweep"] = {"start_hz": 8.0e9, "stop_hz": 12.0e9, "count": 3}
+    assert spectrum_frequencies(spec, 3) == [8.0e9, 10.0e9, 12.0e9]
+    path = write_spectrum_csv(tmp_path, spec, {"dB(S(P2,P1))": [0.0, -0.2, -0.1]})
+    text = __import__("pathlib").Path(path).read_text(encoding="utf-8")
+    assert "frequency_hz" in text.splitlines()[0]
+    assert "8e+09" in text or "8000000000" in text
+
+
+def test_listed_frequencies_stay_capped_at_21() -> None:
+    from sim_plugin.checklist import rejection
+
+    spec = _guide()
+    spec["max_passes"] = 4
+    spec["max_delta_s"] = 0.02
+    spec["frequencies_hz"] = [1.0e10] * 30
+    assert rejection(spec, "hfss") is not None
+
+
 def test_mode_count_above_four_is_rejected() -> None:
     errors, _warnings = validate_spec(_guide(modes=5))
     assert any("modes" in error for error in errors)
