@@ -44,6 +44,33 @@ def test_assumption_lines_keep_only_assumed_items() -> None:
     assert assumption_lines(spec) == ["material: vacuum"]
 
 
+def test_sweep_reuses_a_confirmed_base() -> None:
+    import copy
+
+    base = confirm({"name": "wr90", "frequency_hz": 1e10, "confirmation": {"items": _items()}})["spec"]
+    study_items = [{"name": name, "source": "specified", "value": name} for name in STUDY_ITEMS]
+    result = confirm(
+        {
+            "name": "length",
+            "base": base,
+            "values": [0.02, 0.03],
+            "confirmation": {"items": study_items},
+        }
+    )
+    assert result["ok"] is True
+    assert rejection(result["spec"]) is None
+    edited = copy.deepcopy(result["spec"])
+    edited["base"]["frequency_hz"] = 2e10
+    refused = rejection(edited)
+    assert refused is not None
+    assert refused["stage"] == "confirm"
+    stale = copy.deepcopy(base)
+    stale["frequency_hz"] = 3e10
+    again = confirm({"base": stale, "values": [1, 2], "confirmation": {"items": study_items}})
+    assert again["ok"] is False
+    assert "frequency" in again["missing"]
+
+
 def test_study_checklist_requires_the_goal_range_and_limit() -> None:
     result = confirm({"values": [1, 2], "confirmation": {"items": _items()}})
     assert result["ok"] is False

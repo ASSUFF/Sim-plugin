@@ -307,6 +307,20 @@ def open_app(spec, project_path, install):
     )
 
 
+def design_variable_names(hfss):
+    """Names a later `variables` block can set. Values stay in the project."""
+    try:
+        variables = hfss.variable_manager.independent_variables
+    except Exception:
+        return []
+    if isinstance(variables, dict):
+        return [str(name) for name in variables.keys()]
+    try:
+        return [str(name) for name in list(variables)]
+    except TypeError:
+        return []
+
+
 def snapshot(hfss):
     objects = []
     try:
@@ -323,6 +337,7 @@ def snapshot(hfss):
         "design": str(hfss.design_name),
         "objects": objects[:80],
         "setups": setups,
+        "variables": design_variable_names(hfss),
     }
 
 

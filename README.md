@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-23. Version `v0.2.1123.3`.
+Updated 2026-11-23. Version `v0.2.1123.4`.
 
-The version has four parts, for example `v0.2.1123.3`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1123.4`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -21,7 +21,7 @@ When the user states a simulation task in full for the first time, do not launch
 - simulation time, adaptive passes, and convergence
 - quantities to report; for a sweep or search, also the goal, the value range, and the run limit
 
-Write the items into `confirmation.items`. Each item has `name`, `source`, and `value`. `source` is `specified` or `assumed`. The names are `frequency`, `region`, `geometry`, `material`, `accuracy`, `stop`, and `outputs`. A sweep or search also needs `goal`, `range`, and `limit`. Run `confirm`. It does not launch a solver. The `spec` it returns is what `run`, `sweep`, and `optimize` accept. Do not call those three until the user accepts the list. If the spec changes after that, run `confirm` again. Without it, those commands return `stage` `confirm` and `launched_solver` false.
+Write the items into `confirmation.items`. Each item has `name`, `source`, and `value`. `source` is `specified` or `assumed`. The names are `frequency`, `region`, `geometry`, `material`, `accuracy`, `stop`, and `outputs`. A sweep or search also needs `goal`, `range`, and `limit`. When `base` is already confirmed, the outer list only adds those three. Run `confirm`. It does not launch a solver. The `spec` it returns is what `run`, `sweep`, and `optimize` accept. Do not call those three until the user accepts the list. If the spec changes after that, run `confirm` again. Without it, those commands return `stage` `confirm` and `launched_solver` false.
 
 ```text
 .venv\Scripts\python.exe -m sim_plugin hfss confirm --spec draft.json
@@ -32,8 +32,6 @@ Use `comsol` or `fdtd` in place of `hfss` for the other solvers. The shipped exa
 Run every command from the **plugin root**, the directory that contains `pyproject.toml`. Nothing in these instructions depends on a fixed drive letter.
 
 Solver details are in `comsol/使用说明.md`, `hfss/使用说明.md`, and `fdtd/使用说明.md`. Third-party licenses are in `致谢.md`.
-
-`工作记录.md` and `交接.md` are not in the download. After you place the plugin on a computer, write those notes locally from the work done on that computer. Do not reuse paths or acceptance results from another machine.
 
 ## 1. Install
 
@@ -64,6 +62,8 @@ The HFSS rectangular-waveguide backend is included at `hfss/src/hfss_aedt`. `doc
 
 `pip install -e ".[hfss]"` installs the same package. If the current Python cannot `import ansys.aedt.core`, a solve returns `stage` `backend` and names that install command as the next step. Set `HFSS_AEDT_PYTHON` and `HFSS_AEDT_SRC` only to replace the bundled backend. A path that is not a file also returns `stage` `backend`. The plugin does not use a path from a particular computer. If Lumerical is not in a default location, set `LUMERICAL_ROOT` to the version directory that contains `api/python/lumapi.py`.
 
+`工作记录.md` and `交接.md` are not in the download. After you place the plugin on a computer, write those notes locally from the work done on that computer. Do not reuse paths or acceptance results from another machine.
+
 ## 2. What it can do
 
 | Task | COMSOL | HFSS | Lumerical FDTD |
@@ -82,7 +82,7 @@ The HFSS rectangular-waveguide backend is included at `hfss/src/hfss_aedt`. `doc
 
 HFSS and FDTD multi-parameter sweeps use a `sweep` object. Each parameter has 2 to 8 values, and the full set of combinations cannot exceed 8. A larger set returns `stage` `spec` and does not launch a solver. The older single `parameter` plus `values` form still works. Before a solve, the same checklist reviews mesh detail, adaptive passes, convergence, simulation time, and the number of frequency points. A failure returns `stage` `checklist`. An install or license failure names exactly one next step.
 
-An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` before it is opened. The original file is left unchanged. `inspect` does not solve. `set` writes the changes only to the copy. To solve an existing COMSOL model, use `run --project` and put the study tag, such as `std1`, in `study`. HFSS `inspect` returns objects and solution setups, not design variables; put the values to change in `variables`.
+An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` before it is opened. The original file is left unchanged. `inspect` does not solve. `set` writes the changes only to the copy. To solve an existing COMSOL model, use `run --project` and put the study tag, such as `std1`, in `study`. HFSS `inspect` returns objects, solution setups, and design variable names. Put the values to change in `variables`, using those names.
 
 ## Spec fields that are easy to miss
 
@@ -103,6 +103,13 @@ An FDTD curve of at least two samples is also written as CSV. Above 512 samples 
 Given a request, an AI can find one matching paper and reproduce its COMSOL, HFSS, or FDTD simulation in one folder. The folder holds the paper, the extracted spec, the local results, and the comparison.
 
 `paper new`, `add`, `targets`, `spec`, `status`, and `compare` do not launch a solver. Save only a PDF the user supplied or one that is openly available. Do not bypass a paywall. Confirm the extracted spec before calling the existing solver command. `compare` writes `comparison.json` and `汇报.md` beside the paper. Without a tolerance it records the difference and does not call the results the same.
+
+`compare` has two paths. There is no `--simulated` flag. `--result` reads a JSON object whose keys are metric names. `--report` reads a solver report and requires `--map`, which points each metric name at a path in that report, such as `results.T_heater_max_K`. Numeric strings in a COMSOL report are parsed as numbers.
+
+```text
+paper compare --folder case --result case\result_local.json
+paper compare --folder case --report hfss\runs\one\report.json --map map.json
+```
 
 Results are JSON. The process exits with code 1 when `ok` is false. `best` means the best result among the runs that were computed. When that point is at the end of the interval, a wider interval may contain a better point. The advice text is written by the current AI from the `advise` facts.
 

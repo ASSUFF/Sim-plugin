@@ -14,6 +14,23 @@ def _guide(**geometry):
     return {"name": "wr90", "frequency_hz": 1.0e10, "geometry": body}
 
 
+def test_inspect_snapshot_lists_variable_names() -> None:
+    from hfss_aedt.engine import design_variable_names, snapshot
+
+    class _Manager:
+        independent_variables = {"length": object(), "offset": object()}
+
+    class _Model:
+        project_name = "owned"
+        design_name = "HFSS"
+        modeler = type("Modeler", (), {"object_names": ["waveguide"]})()
+        setup_names = ["Setup1"]
+        variable_manager = _Manager()
+
+    assert design_variable_names(_Model()) == ["length", "offset"]
+    assert snapshot(_Model())["variables"] == ["length", "offset"]
+
+
 def test_single_mode_names_stay_the_same() -> None:
     assert s_expressions(1) == [
         "dB(S(P1,P1))",

@@ -95,27 +95,50 @@ def rejection(spec: object) -> dict | None:
     return None
 
 
-def _missing(spec: dict) -> list[str]:
-    required = list(CORE_ITEMS)
-    if any(key in spec for key in ("sweep", "optimize", "values")):
-        required.extend(STUDY_ITEMS)
+def _present(spec: dict) -> set[str]:
     found: set[str] = set()
     confirmation = spec.get("confirmation")
     items = confirmation.get("items") if isinstance(confirmation, dict) else None
-    if isinstance(items, list):
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            name = item.get("name")
-            source = item.get("source")
-            value = item.get("value")
-            if (
-                isinstance(name, str)
-                and source in ("specified", "assumed")
-                and isinstance(value, str)
-                and value.strip()
-            ):
-                found.add(name)
+    if not isinstance(items, list):
+        return found
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        source = item.get("source")
+        value = item.get("value")
+        if (
+            isinstance(name, str)
+            and source in ("specified", "assumed")
+            and isinstance(value, str)
+            and value.strip()
+        ):
+            found.add(name)
+    return found
+
+
+def _base_covers_core(spec: dict) -> bool:
+    """A confirmed base already holds the seven physics items."""
+    base = spec.get("base")
+    if not isinstance(base, dict):
+        return False
+    confirmation = base.get("confirmation")
+    if not isinstance(confirmation, dict) or not isinstance(confirmation.get("token"), str):
+        return False
+    if confirmation["token"] != _token(base):
+        return False
+    return all(name in _present(base) for name in CORE_ITEMS)
+
+
+def _missing(spec: dict) -> list[str]:
+    study = any(key in spec for key in ("sweep", "optimize", "values"))
+    if study and _base_covers_core(spec):
+        required = list(STUDY_ITEMS)
+    else:
+        required = list(CORE_ITEMS)
+        if study:
+            required.extend(STUDY_ITEMS)
+    found = _present(spec)
     return [name for name in required if name not in found]
 
 
