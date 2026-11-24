@@ -4,6 +4,7 @@ import argparse
 import json
 import shutil
 import sys
+import tempfile
 import time
 import traceback
 from datetime import datetime
@@ -32,6 +33,65 @@ def new_run_dir(name, spec):
     folder = runs_dir(spec) / ("%s_%s" % (datetime.now().strftime("%Y%m%d_%H%M%S"), safe[:40]))
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def needs_ascii_scratch(path):
+    return any(ord(ch) > 127 for ch in str(path))
+
+
+def ascii_workdir(folder):
+    """AEDT Save fails when the project path contains non-ASCII characters."""
+    if not needs_ascii_scratch(folder):
+        return folder, None
+    scratch = Path(tempfile.gettempdir()) / "sim_plugin_hfss" / folder.name
+    scratch.mkdir(parents=True, exist_ok=True)
+    return scratch, folder
+
+
+def _csv_number(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return "%.12g" % value
+    return ""
+
+
+def retarget_outputs(payload, work, public):
+    if public is None:
+        return
+    for key in ("project_copy", "touchstone", "spectrum_csv"):
+        value = payload.get(key)
+        if isinstance(value, str):
+            payload[key] = relocated(value, work, public)
+
+
+def relocated(path, work, public):
+    try:
+        relative = Path(path).resolve().relative_to(Path(work).resolve())
+    except ValueError:
+        return path
+    return str(Path(public) / relative)
+
+
+def _copy_tree(source, dest, skipped):
+    if source.is_dir():
+        dest.mkdir(parents=True, exist_ok=True)
+        for child in source.iterdir():
+            _copy_tree(child, dest / child.name, skipped)
+        return
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+    except OSError as exc:
+        skipped.append("%s: %s" % (source.name, exc))
+
+
+def publish_ascii(work, public):
+    skipped = []
+    if public is None or Path(work) == Path(public):
+        return skipped
+    public.mkdir(parents=True, exist_ok=True)
+    for path in Path(work).iterdir():
+        _copy_tree(path, Path(public) / path.name, skipped)
+    return skipped
 
 
 def existing_desktop_pids():
@@ -215,13 +275,19 @@ def spectrum_frequencies(spec, length):
 def write_spectrum_csv(folder, spec, rows):
     import csv
 
-    lists = {key: value for key, value in rows.items() if isinstance(value, list) and value}
+    lists = {
+        key: value
+        for key, value in rows.items()
+        if isinstance(value, list) and value and key != "frequency_hz"
+    }
     if not lists:
         return None
     length = len(next(iter(lists.values())))
     if any(len(value) != length for value in lists.values()):
         return None
-    frequencies = spectrum_frequencies(spec, length)
+    frequencies = rows.get("frequency_hz")
+    if not (isinstance(frequencies, list) and len(frequencies) == length):
+        frequencies = spectrum_frequencies(spec, length)
     path = folder / "s_spectrum.csv"
     headers = ["frequency_hz" if frequencies else "index", *lists]
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -229,11 +295,57 @@ def write_spectrum_csv(folder, spec, rows):
         writer.writerow(headers)
         for index in range(length):
             lead = "%.12g" % frequencies[index] if frequencies else index
-            writer.writerow([lead, *["%.12g" % lists[key][index] for key in lists]])
+            writer.writerow([lead, *[_csv_number(lists[key][index]) for key in lists]])
     return str(path)
 
 
-def solution_rows(hfss, setup_name, modes=1, sweep_name=None):
+def _number_list(values):
+    if values is None:
+        return []
+    try:
+        return [float(item) for item in list(values)]
+    except (TypeError, ValueError):
+        return []
+
+
+def _expression_values(data, expr, errors):
+    try:
+        numbers = _number_list(data.data_real(expr))
+    except Exception:
+        numbers = []
+    if numbers:
+        return numbers
+    try:
+        _axis, values = data.get_expression_data(expression=expr, formula="real")
+        numbers = _number_list(values)
+    except Exception as exc:
+        if errors is not None:
+            errors.append("%s: %s" % (expr, exc))
+        return []
+    return numbers
+
+
+def _sweep_frequencies(data):
+    try:
+        values = [float(item) for item in data.primary_sweep_values]
+    except Exception:
+        return []
+    if not values:
+        return []
+    unit = ""
+    try:
+        unit = str(data.units_sweeps.get(data.primary_sweep, "")).lower()
+    except Exception:
+        unit = ""
+    scale = {"ghz": 1e9, "mhz": 1e6, "khz": 1e3, "hz": 1.0}.get(unit)
+    if scale is None and max(abs(item) for item in values) < 1e6:
+        scale = 1e9
+    if scale is None:
+        scale = 1.0
+    return [item * scale for item in values]
+
+
+def solution_rows(hfss, setup_name, modes=1, sweep_name=None, errors=None):
     expressions = s_expressions(modes)
     names = []
     if sweep_name:
@@ -242,8 +354,21 @@ def solution_rows(hfss, setup_name, modes=1, sweep_name=None):
     data = None
     for name in names:
         try:
-            found = hfss.post.get_solution_data(expressions=expressions, setup_sweep_name=name)
-        except Exception:
+            found = hfss.post.get_solution_data(
+                expressions=expressions,
+                setup_sweep_name=name,
+                report_category="Modal Solution Data",
+            )
+        except TypeError:
+            try:
+                found = hfss.post.get_solution_data(expressions=expressions, setup_sweep_name=name)
+            except Exception as exc:
+                if errors is not None:
+                    errors.append("%s: %s" % (name, exc))
+                found = None
+        except Exception as exc:
+            if errors is not None:
+                errors.append("%s: %s" % (name, exc))
             found = None
         if found:
             data = found
@@ -252,41 +377,55 @@ def solution_rows(hfss, setup_name, modes=1, sweep_name=None):
     if not data:
         return rows
     for expr in expressions:
-        try:
-            values = data.data_real(expr)
-        except Exception:
-            values = None
-        if values:
-            numbers = [float(item) for item in values]
+        numbers = _expression_values(data, expr, errors)
+        if numbers:
             rows[expr] = numbers[0] if len(numbers) == 1 else numbers
+    frequencies = _sweep_frequencies(data)
+    if len(frequencies) > 1:
+        rows["frequency_hz"] = frequencies
     return rows
 
 
 def touchstone_db(path):
     import math
 
+    unit = "ghz"
     rows = []
     for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
         text = line.strip()
-        if not text or text.startswith("!") or text.startswith("#"):
+        if text.startswith("#"):
+            parts = text[1:].split()
+            if parts:
+                unit = parts[0].lower()
+            continue
+        if not text or text.startswith("!"):
             continue
         rows.append([float(item) for item in text.split()])
     if not rows:
         return {}
-    freq, s11m, s11a, s21m, s21a, s12m, s12a, s22m, s22a = rows[0][:9]
+    scale = {"hz": 1.0, "khz": 1e3, "mhz": 1e6, "ghz": 1e9}.get(unit, 1e9)
 
     def db(magnitude):
         if magnitude <= 0:
             return None
         return round(20.0 * math.log10(magnitude), 3)
 
+    def column(index, as_db=False):
+        values = []
+        for row in rows:
+            if len(row) <= index:
+                values.append(None)
+                continue
+            values.append(db(row[index]) if as_db else row[index])
+        return values[0] if len(values) == 1 else values
+
+    frequencies = [row[0] * scale for row in rows if row]
     return {
-        "frequency_ghz": freq,
-        "dB(S(P1,P1))": db(s11m),
-        "dB(S(P2,P1))": db(s21m),
-        "dB(S(P1,P2))": db(s12m),
-        "dB(S(P2,P2))": db(s22m),
-        "angle_deg": {"S11": s11a, "S21": s21a, "S12": s12a, "S22": s22a},
+        "frequency_hz": frequencies[0] if len(frequencies) == 1 else frequencies,
+        "dB(S(P1,P1))": column(1, True),
+        "dB(S(P2,P1))": column(3, True),
+        "dB(S(P1,P2))": column(5, True),
+        "dB(S(P2,P2))": column(7, True),
     }
 
 
@@ -355,18 +494,26 @@ def run_spec(spec, spec_path=None, emit_result=True):
     if license_error:
         return done({"ok": False, "action": "run", "error": license_error}, 1)
     name = spec.get("name") or "hfss"
-    folder = new_run_dir(name, spec)
+    public = new_run_dir(name, spec)
+    folder, mirrored = ascii_workdir(public)
+    if mirrored is not None:
+        warnings = list(warnings) + [
+            "运行目录含非 ASCII 字符。AEDT 在临时 ASCII 目录求解，结束后把结果拷回 run_dir。"
+        ]
     payload = {
         "ok": False,
         "action": "run",
         "name": name,
-        "run_dir": str(folder),
-        "summary_path": str(folder / "summary.json"),
+        "run_dir": str(mirrored or folder),
+        "summary_path": str((mirrored or folder) / "summary.json"),
         "hide_gui": bool(spec.get("hide_gui", True)),
         "warnings": warnings,
     }
+    if mirrored is not None:
+        payload["aedt_workdir"] = str(folder)
     app = None
     protected = existing_desktop_pids()
+    code = 1
     try:
         install = find_install(spec.get("version"))
         payload["aedt"] = install.as_dict()
@@ -409,38 +556,77 @@ def run_spec(spec, spec_path=None, emit_result=True):
             if sweep_name:
                 app.analyze_setup("%s : %s" % (setup_name, sweep_name))
             app.save_project()
+            export_notes = []
             try:
                 payload["s_db"] = solution_rows(
                     app,
                     setup_name,
                     port_modes(spec.get("geometry") or {}),
                     sweep_name,
+                    export_notes,
                 )
-                spectrum = write_spectrum_csv(folder, spec, payload["s_db"])
-                if spectrum:
-                    payload["spectrum_csv"] = spectrum
             except Exception as exc:
                 payload["export_errors"] = [{"error": str(exc)}]
             touchstone = folder / ("%s.s2p" % safe[:40])
-            try:
-                exported = app.export_touchstone(setup=setup_name, output_file=str(touchstone))
-                if exported:
-                    payload["touchstone"] = str(exported)
-                    if not payload.get("s_db") and port_modes(spec.get("geometry") or {}) <= 1:
-                        payload["s_db"] = touchstone_db(Path(str(exported)))
-            except Exception as exc:
-                payload.setdefault("export_errors", []).append({"error": str(exc)})
+            export_calls = []
+            if sweep_name:
+                export_calls.append({"setup": setup_name, "sweep": sweep_name})
+            export_calls.append({"setup": setup_name})
+            for kwargs in export_calls:
+                label = kwargs["setup"] + ((" : " + kwargs["sweep"]) if kwargs.get("sweep") else "")
+                try:
+                    exported = app.export_touchstone(output_file=str(touchstone), **kwargs)
+                except Exception as exc:
+                    export_notes.append("touchstone %s: %s" % (label, exc))
+                    exported = None
+                if not exported:
+                    continue
+                parsed = touchstone_db(Path(str(exported)))
+                curve = parsed.get("dB(S(P2,P1))")
+                payload["touchstone"] = str(exported)
+                if sweep_name and isinstance(curve, list):
+                    payload["s_db"] = parsed
+                    break
+                if not payload.get("s_db"):
+                    payload["s_db"] = parsed
+            if isinstance(payload.get("s_db"), dict):
+                spectrum = write_spectrum_csv(folder, spec, payload["s_db"])
+                if spectrum:
+                    payload["spectrum_csv"] = spectrum
+            if sweep_name and not payload.get("spectrum_csv"):
+                export_notes.append("频率扫描已请求，但没有取到多频点 S 参数，s_spectrum.csv 未生成。")
+            if export_notes:
+                payload.setdefault("export_errors", []).extend({"error": item} for item in export_notes)
         payload["model"] = snapshot(app)
         payload["ok"] = True
         payload["elapsed_s"] = round(time.time() - started, 3)
-        return done(payload)
+        code = 0
     except Exception as exc:
-        payload["error"] = str(exc)
+        message = str(exc)
+        payload["error"] = message
+        if "Save" in message and needs_ascii_scratch(mirrored or folder):
+            payload["stage"] = "path"
+            payload["error"] = (
+                "HFSS 无法把工程保存到含非 ASCII 字符的路径。"
+                "下一步：把 spec.run_root 或 HFSS_AEDT_RUNS 指到纯 ASCII 目录。"
+            )
         payload["traceback"] = traceback.format_exc(limit=12)
         payload["elapsed_s"] = round(time.time() - started, 3)
-        return done(payload, 1)
     finally:
         release(app, protected)
+    try:
+        skipped = publish_ascii(folder, mirrored)
+        retarget_outputs(payload, folder, mirrored)
+    except Exception as copy_error:
+        payload["ok"] = False
+        payload["stage"] = "path"
+        payload["error"] = "结果已写在临时 ASCII 目录，拷回运行目录失败：%s" % copy_error
+        code = 1
+        skipped = []
+    if skipped:
+        payload.setdefault("warnings", [])
+        payload["warnings"].append("有 %s 个仍被占用的文件没有拷回，其余结果已在 run_dir。" % len(skipped))
+    return done(payload, code)
 
 
 def run_study(study):

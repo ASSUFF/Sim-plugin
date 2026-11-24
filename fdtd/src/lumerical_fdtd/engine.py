@@ -447,6 +447,32 @@ def export_results(session, exports, folder):
     return saved, errors
 
 
+def substitute_assignments(script, assignments):
+    import re
+
+    if not isinstance(assignments, dict) or not assignments:
+        return script
+    text = script
+    for name, value in assignments.items():
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", str(name)):
+            raise ValueError("脚本变量名不合法：%s" % name)
+        if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+            raise ValueError("脚本变量 %s 需要是数字或字符串。" % name)
+        if isinstance(value, float):
+            literal = "%.12g" % value
+        elif isinstance(value, str):
+            if "\n" in value or ";" in value:
+                raise ValueError("脚本变量 %s 的字符串不能包含分号或换行。" % name)
+            literal = '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
+        else:
+            literal = str(value)
+        pattern = re.compile(r"(?m)^(\s*)%s\s*=\s*[^;\n]*;" % re.escape(str(name)))
+        text, count = pattern.subn(lambda _match, name=name, literal=literal: "%s%s = %s;" % (_match.group(1), name, literal), text, count=1)
+        if count == 0:
+            raise ValueError("脚本里没有赋值 %s = ...;" % name)
+    return text
+
+
 def load_script(spec, spec_path):
     if spec.get("script_file"):
         path = Path(spec["script_file"])
@@ -564,7 +590,7 @@ def run_spec(spec, spec_path=None, emit_result=True):
                 session.setglobalsource(prop_name(key), value)
         add_commands(session, spec.get("commands") or [])
         apply_overrides(session, spec.get("overrides") or [])
-        script = load_script(spec, spec_path)
+        script = substitute_assignments(load_script(spec, spec_path), spec.get("script_assignments") or {})
         if script:
             eval_script(session, script)
         points = spec.get("frequency_points")

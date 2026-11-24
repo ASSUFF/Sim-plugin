@@ -34,6 +34,7 @@ def call_engine(args):
     env = os.environ.copy()
     src = str(Path(__file__).resolve().parents[1])
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     proc = subprocess.run(
         [str(program), str(ENGINE), *args],
         capture_output=True,

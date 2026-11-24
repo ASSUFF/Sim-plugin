@@ -15,6 +15,7 @@ from pathlib import Path
 from comsol_plugin.discover import find_install
 from comsol_plugin.validate import validate_job
 from sim_plugin.checklist import rejection as checklist_rejection
+from sim_plugin.proc import capture_native
 from sim_plugin.confirm import assumption_lines, rejection
 from sim_plugin.result_check import problems as result_problems
 
@@ -116,6 +117,10 @@ def run_java(
             "launched_solver": False,
             "error": str(exc),
         }
+    if runs_root is None:
+        chosen = _spec_data(spec).get("run_root")
+        if isinstance(chosen, str) and chosen.strip():
+            runs_root = chosen
     root = Path(runs_root) if runs_root is not None else source.parents[1] / "runs"
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     work = root / f"{stamp}_{source.stem}"
@@ -137,7 +142,7 @@ def run_java(
             "returncode": compiled["returncode"],
             "stdout": compiled["stdout"],
             "stderr": compiled["stderr"],
-            "error": "comsolcompile 没有生成 class 文件。",
+            "error": "comsolcompile 没有生成 class 文件。\n" + _tail(compiled),
         }
 
     log_file = work / f"{source.stem}_batch.log"
@@ -174,6 +179,7 @@ def run_java(
         "class_name": checked["class_name"],
         "parameters": checked["parameters"],
         "exports": checked["exports"],
+        "export_files": _written_files(work),
     }
     if batched["returncode"] != 0:
         payload["error"] = "comsolbatch 返回了非零退出码。日志在 batch_log。"
@@ -220,13 +226,25 @@ def _parameter_overrides(spec: str | Path | None) -> dict[str, str]:
     return values
 
 
+def _written_files(work: Path) -> list[str]:
+    suffixes = {".csv", ".png", ".jpg"}
+    return sorted(str(path) for path in work.iterdir() if path.is_file() and path.suffix.lower() in suffixes)
+
+
+def _tail(completed: dict, limit: int = 20) -> str:
+    text = ((completed.get("stderr") or "") + "\n" + (completed.get("stdout") or "")).strip()
+    if not text:
+        return ""
+    return "\n".join(text.splitlines()[-limit:])
+
+
 def _run(runner, command: list[str], work: Path) -> dict:
     completed = runner(
         command,
         cwd=str(work),
         capture_output=True,
-        text=True,
         check=False,
+        **capture_native(),
     )
     return {
         "returncode": completed.returncode,

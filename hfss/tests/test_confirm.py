@@ -71,7 +71,13 @@ def test_sweep_reuses_a_confirmed_base() -> None:
     assert "frequency" in again["missing"]
 
 
-def test_study_checklist_requires_the_goal_range_and_limit() -> None:
+def test_sweep_checklist_can_omit_the_goal() -> None:
     result = confirm({"values": [1, 2], "confirmation": {"items": _items()}})
+    assert result["ok"] is False
+    assert result["missing"] == ["range", "limit"]
+
+
+def test_optimize_checklist_still_requires_the_goal() -> None:
+    result = confirm({"optimize": {"min": 1, "max": 2}, "confirmation": {"items": _items()}})
     assert result["ok"] is False
     assert result["missing"] == ["goal", "range", "limit"]

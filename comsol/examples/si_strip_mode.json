@@ -1,0 +1,75 @@
+{
+  "parameters": {
+    "W_core": {
+      "value": "0.5[um]"
+    },
+    "H_core": {
+      "value": "0.22[um]"
+    },
+    "n_core": {
+      "value": "3.476"
+    },
+    "n_clad": {
+      "value": "1.444"
+    },
+    "lam0": {
+      "value": "1550[nm]"
+    },
+    "hauto": {
+      "value": "2"
+    },
+    "n_guess": {
+      "value": "2.4"
+    },
+    "n_modes": {
+      "value": "6"
+    }
+  },
+  "exports": [
+    "neff_mode0",
+    "neff_mode1",
+    "neff_mode2",
+    "beta_mode0_per_m",
+    "n_core_used"
+  ],
+  "confirmation": {
+    "items": [
+      {
+        "name": "frequency",
+        "source": "specified",
+        "value": "1550 nm"
+      },
+      {
+        "name": "region",
+        "source": "specified",
+        "value": "4 um by 4 um cross section, PEC outer box"
+      },
+      {
+        "name": "geometry",
+        "source": "specified",
+        "value": "silicon strip 500 nm by 220 nm"
+      },
+      {
+        "name": "material",
+        "source": "specified",
+        "value": "n_core 3.476, n_clad 1.444"
+      },
+      {
+        "name": "accuracy",
+        "source": "specified",
+        "value": "hauto 2, six modes, shift 2.4"
+      },
+      {
+        "name": "stop",
+        "source": "specified",
+        "value": "one mode analysis"
+      },
+      {
+        "name": "outputs",
+        "source": "specified",
+        "value": "n_eff from beta = -Im(lambda), n_eff = beta / k0"
+      }
+    ],
+    "token": "1135b1ea749a75177b7cfa9903976cca40862ecb050ce105ee9b15f6ed66b55c"
+  }
+}

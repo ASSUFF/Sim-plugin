@@ -252,6 +252,7 @@ def _call(args: list[str], *, runner) -> dict:
     env = os.environ.copy()
     src = str(ENGINE.parents[1])
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     completed = runner(
         [_interpreter(), str(ENGINE), *args],
         capture_output=True,
@@ -295,6 +296,7 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
     env = os.environ.copy()
     src = str(ENGINE.parents[1])
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     command = [_interpreter(), str(ENGINE), action, "--spec", str(spec_path)]
     options = dict(
         capture_output=True,
@@ -356,13 +358,17 @@ def _sweep_many(study: dict, *, runner) -> dict:
             return failed
     metric = study.get("metric") if isinstance(study.get("metric"), dict) else {}
     expression = metric.get("export") if isinstance(metric.get("export"), str) and metric["export"].strip() else "T"
-    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else "max"
+    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else None
     points = []
     launched = False
     for combo in combos:
         spec = dict(study["base"])
         spec["overrides"] = list(spec.get("overrides") or [])
         for key, value in combo.items():
+            if key.startswith("script:") or key.startswith("script."):
+                name = key.split(":", 1)[1] if key.startswith("script:") else key.split(".", 1)[1]
+                spec.setdefault("script_assignments", {})[name] = value
+                continue
             object_name, _, prop = key.partition(".")
             spec["overrides"].append({"object": object_name, "property": prop or key, "value": value})
         spec["name"] = str(study.get("name") or "fdtd")
@@ -433,9 +439,16 @@ def _publish_rows(study: dict, raw: dict, *, kind: str) -> dict:
     prop = parameter.get("property") if isinstance(parameter.get("property"), str) else "property"
     metric = study.get("metric") if isinstance(study.get("metric"), dict) else {}
     expression = metric.get("export") if isinstance(metric.get("export"), str) and metric["export"].strip() else "T"
-    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else raw.get("goal") if raw.get("goal") in ("min", "max") else "max"
+    if metric.get("goal") in ("min", "max"):
+        sense = metric["goal"]
+    elif kind == "optimize" and raw.get("goal") in ("min", "max"):
+        sense = raw["goal"]
+    elif kind == "optimize":
+        sense = "max"
+    else:
+        sense = None
     rows = rows_from_points(raw.get("points") or [], f"{obj}.{prop}", expression)
-    best = best_row(rows, expression, sense)
+    best = best_row(rows, expression, sense) if sense in ("min", "max") else None
     lines = assumption_lines(study)
     _stamp_point_reports(raw.get("points") or [], lines)
     _prepare_env()
@@ -444,21 +457,25 @@ def _publish_rows(study: dict, raw: dict, *, kind: str) -> dict:
     folder = Path(os.environ["LUMERICAL_FDTD_RUNS"]) / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{safe}_{kind}"
     folder.mkdir(parents=True, exist_ok=True)
     report = {
-        "ok": bool(rows) and all(row["ok"] for row in rows) and best is not None,
+        "ok": bool(rows) and all(row["ok"] for row in rows) and (best is not None or sense not in ("min", "max")),
         "stage": kind,
         "launched_solver": bool(raw.get("launched_solver")),
-        "goal": {"expression": expression, "sense": sense},
+        "goal": {"expression": expression, "sense": sense} if sense in ("min", "max") else None,
         "rows": rows,
         "best": best,
         "run_count": len(rows),
         "max_runs": 8,
         "work_dir": str(folder),
         "assumptions": lines,
-        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
+        "note": (
+            "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。"
+            if sense in ("min", "max")
+            else "这是一次参数研究，未设目标。"
+        ),
     }
-    if best is None and rows and rows[-1].get("error"):
+    if sense in ("min", "max") and best is None and rows and rows[-1].get("error"):
         report["error"] = rows[-1]["error"]
-    elif best is None:
+    elif sense in ("min", "max") and best is None:
         report["error"] = f"结果里没有可用的数值 {expression}。"
     report_path = folder / "report.json"
     report["report"] = str(report_path)

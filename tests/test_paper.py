@@ -51,7 +51,9 @@ def test_compare_uses_the_paper_tolerance(tmp_path: Path) -> None:
     assert result["launched_solver"] is False
     assert result["rows"][0]["within"] is True
     assert result["rows"][1]["within"] is False
-    assert (folder / "汇报.md").is_file()
+    report_text = (folder / "汇报.md").read_text(encoding="utf-8")
+    assert "40–50" in report_text
+    assert "—" not in report_text.split("bandwidth_GHz")[0]
     saved = json.loads((folder / "comparison.json").read_text(encoding="utf-8"))
     assert saved["mismatched"] == 1
     state = status(folder)

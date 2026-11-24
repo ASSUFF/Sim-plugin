@@ -132,12 +132,14 @@ def _base_covers_core(spec: dict) -> bool:
 
 def _missing(spec: dict) -> list[str]:
     study = any(key in spec for key in ("sweep", "optimize", "values"))
+    optimizing = "optimize" in spec
+    study_required = list(STUDY_ITEMS) if optimizing else ["range", "limit"]
     if study and _base_covers_core(spec):
-        required = list(STUDY_ITEMS)
+        required = study_required
     else:
         required = list(CORE_ITEMS)
         if study:
-            required.extend(STUDY_ITEMS)
+            required.extend(study_required)
     found = _present(spec)
     return [name for name in required if name not in found]
 

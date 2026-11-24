@@ -73,11 +73,18 @@ def _evaluate(java, spec, *, kind, stoptime_s, runs_root, install_root, runner) 
         if rejected:
             return rejected
     goal = spec_data.get("goal")
-    if not isinstance(goal, dict) or goal.get("sense") not in ("min", "max"):
-        return _spec_error("扫描和寻优都需要 goal.sense 为 min 或 max。")
-    expression = goal.get("expression")
-    if not isinstance(expression, str):
-        return _spec_error("goal.expression 需要是结果名。")
+    if goal is None and kind == "sweep":
+        expression = None
+        trend = True
+    else:
+        trend = False
+        if not isinstance(goal, dict) or goal.get("sense") not in ("min", "max"):
+            return _spec_error("寻优需要 goal.sense 为 min 或 max。扫描不设目标时只返回各次结果。")
+        expression = goal.get("expression")
+        if not isinstance(expression, str):
+            return _spec_error("goal.expression 需要是结果名。")
+    if runs_root is None and isinstance(spec_data.get("run_root"), str) and spec_data["run_root"].strip():
+        runs_root = spec_data["run_root"]
 
     try:
         plan = _plan(spec_data, kind)
@@ -128,22 +135,33 @@ def _evaluate(java, spec, *, kind, stoptime_s, runs_root, install_root, runner) 
             if not evaluate({name: _format(nxt, unit)}, nxt):
                 break
 
-    successful = [row for row in rows if row["ok"] and _numeric(row["results"].get(expression)) is not None]
-    best = _best(successful, expression, goal["sense"])
+    if trend:
+        best = None
+        note = "这是一次参数研究，未设目标。"
+        goal_body = None
+        ok = bool(rows) and all(row["ok"] for row in rows)
+    else:
+        successful = [row for row in rows if row["ok"] and _numeric(row["results"].get(expression)) is not None]
+        best = _best(successful, expression, goal["sense"])
+        note = "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。"
+        goal_body = {"expression": expression, "sense": goal["sense"]}
+        ok = bool(rows) and all(row["ok"] for row in rows) and best is not None
     report = {
-        "ok": bool(rows) and all(row["ok"] for row in rows) and best is not None,
+        "ok": ok,
         "stage": kind,
         "launched_solver": bool(rows),
-        "goal": {"expression": expression, "sense": goal["sense"]},
+        "goal": goal_body,
         "rows": rows,
         "best": best,
         "run_count": len(rows),
         "max_runs": MAX_RUNS,
         "work_dir": str(folder),
         "assumptions": assumption_lines(spec_data),
-        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
+        "note": note,
     }
-    if best is None and rows and rows[-1].get("error"):
+    if trend:
+        pass
+    elif best is None and rows and rows[-1].get("error"):
         report["error"] = rows[-1]["error"]
     elif best is None:
         report["error"] = f"结果里没有可用的数值 {expression}。"

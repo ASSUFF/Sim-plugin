@@ -83,6 +83,53 @@ def test_in_solver_frequency_sweep_is_not_eight_runs(tmp_path) -> None:
     assert "8e+09" in text or "8000000000" in text
 
 
+def test_touchstone_keeps_every_frequency_row(tmp_path) -> None:
+    from hfss_aedt.engine import touchstone_db, write_spectrum_csv
+
+    path = tmp_path / "sweep.s2p"
+    path.write_text(
+        "\n".join(
+            [
+                "! Solution: Setup1 : Sweep1",
+                "# GHz S MA R 50",
+                "220 0.1 0 0.98 0 0.98 0 0.1 0",
+                "300 0.2 0 0.90 0 0.90 0 0.2 0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    parsed = touchstone_db(path)
+    assert parsed["frequency_hz"] == [220e9, 300e9]
+    assert parsed["dB(S(P2,P1))"][0] != parsed["dB(S(P2,P1))"][1]
+    spec = _guide()
+    spec["frequency_sweep"] = {"start_hz": 220e9, "stop_hz": 300e9, "count": 2}
+    csv_path = write_spectrum_csv(tmp_path, spec, parsed)
+    text = __import__("pathlib").Path(csv_path).read_text(encoding="utf-8")
+    assert "2.2e+11" in text or "220000000000" in text
+    assert "3e+11" in text or "300000000000" in text
+
+
+def test_non_ascii_run_dir_uses_an_ascii_scratch(tmp_path) -> None:
+    from hfss_aedt.engine import ascii_workdir, needs_ascii_scratch, publish_ascii, relocated
+
+    public = tmp_path / "中文路径" / "run"
+    public.mkdir(parents=True)
+    assert needs_ascii_scratch(public) is True
+    work, mirrored = ascii_workdir(public)
+    assert mirrored == public
+    assert needs_ascii_scratch(work) is False
+    (work / "model.s2p").write_text("# GHz S MA\n", encoding="utf-8")
+    nested = work / "model.aedtresults"
+    nested.mkdir()
+    (nested / "field.txt").write_text("ok", encoding="utf-8")
+    publish_ascii(work, mirrored)
+    assert (public / "model.s2p").is_file()
+    assert (public / "model.aedtresults" / "field.txt").read_text(encoding="utf-8") == "ok"
+    assert relocated(str(work / "model.s2p"), work, public).endswith("model.s2p")
+    assert "中文路径" in relocated(str(work / "model.s2p"), work, public)
+    __import__("shutil").rmtree(work, ignore_errors=True)
+
+
 def test_listed_frequencies_stay_capped_at_21() -> None:
     from sim_plugin.checklist import rejection
 

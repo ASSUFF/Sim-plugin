@@ -105,6 +105,45 @@ def test_report_records_assumed_items(tmp_path: Path) -> None:
     assert saved["assumptions"] == ["material: 导热系数 10"]
 
 
+def test_compile_failure_keeps_the_compiler_text(tmp_path: Path) -> None:
+    install = tmp_path / "comsol"
+    _install(install)
+    java = tmp_path / "Sample.java"
+    java.write_text(GOOD, encoding="utf-8")
+    seen = {}
+
+    def runner(command, **kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(returncode=1, stdout="", stderr="错误：找不到符号\n")
+
+    result = run_java(java, runs_root=tmp_path / "runs", install_root=install, stoptime_s=30, runner=runner)
+    assert result["ok"] is False
+    assert result["stage"] == "compile"
+    assert "找不到符号" in result["error"]
+    assert seen["errors"] == "replace"
+
+
+def test_spec_run_root_is_honored(tmp_path: Path) -> None:
+    install = tmp_path / "comsol"
+    _install(install)
+    java = tmp_path / "Sample.java"
+    java.write_text(GOOD, encoding="utf-8")
+    spec = tmp_path / "job.json"
+    root = tmp_path / "自定义结果"
+    spec.write_text(json.dumps({"run_root": str(root)}), encoding="utf-8")
+
+    def runner(command, **kwargs):
+        if Path(command[0]).name == "comsolcompile.exe":
+            Path(command[1]).with_suffix(".class").write_text("class", encoding="utf-8")
+            (Path(command[1]).parent / "mode.csv").write_text("x,y\n", encoding="utf-8")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout="===RESULT===\nL=1\n", stderr="")
+
+    result = run_java(java, spec, install_root=install, stoptime_s=30, runner=runner)
+    assert str(root) in result["work_dir"]
+    assert any(path.endswith("mode.csv") for path in result["export_files"])
+
+
 def test_fake_toolchain_returns_results(tmp_path: Path) -> None:
     install = tmp_path / "comsol"
     _install(install)

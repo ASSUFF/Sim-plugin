@@ -67,6 +67,21 @@ def test_spec_parameter_must_be_set_in_java(tmp_path: Path) -> None:
     assert result["goal"] == {"expression": "L", "sense": "min"}
 
 
+def test_dynamic_exports_skip_the_literal_name_check(tmp_path: Path) -> None:
+    java = tmp_path / "Sample.java"
+    spec = tmp_path / "job.json"
+    _write_java(
+        java,
+        GOOD.replace('System.out.println("L="', 'System.out.printf("mode%d=", i); // L='),
+    )
+    spec.write_text(
+        json.dumps({"exports": ["mode0"], "dynamic_exports": True}),
+        encoding="utf-8",
+    )
+    result = validate_job(java, spec)
+    assert result["errors"] == []
+
+
 def test_goal_outside_exports_fails(tmp_path: Path) -> None:
     java = tmp_path / "Sample.java"
     spec = tmp_path / "job.json"

@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-23. Version `v0.2.1123.4`.
+Updated 2026-11-24. Version `v0.2.1124.1`.
 
-The version has four parts, for example `v0.2.1123.4`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1124.1`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -90,11 +90,14 @@ An existing project is copied into `comsol/runs`, `hfss/runs`, or `fdtd/runs` be
 |---|---|---|
 | `material_verified: true` | Top of an HFSS spec when the material is not one of `vacuum`, `air`, `pec`, `copper`, `gold`, `aluminum`, `silver`, `teflon` | The solve is refused. An unknown name would otherwise be replaced with `vacuum` |
 | `exports` | Top of a COMSOL sweep or optimize spec | `goal.expression` must be one of these result names |
-| `goal.expression`, `goal.sense` | COMSOL sweep or optimize. `sense` is `min` or `max` | There is no `best` without a goal |
+| `goal.expression`, `goal.sense` | Required for optimize. `sense` is `min` or `max`. A sweep may omit it | Without a goal, a sweep returns `rows`, `best` is null, and the note says it is a parameter study |
 | `frequency_hz` | The single adaptive frequency for a new HFSS waveguide, in hertz | Required for a new waveguide |
 | `frequencies_hz` | A list of 1 to 21 frequencies checked before an HFSS solve | A longer list is rejected. This list is not an in-solver spectrum |
-| `frequency_sweep` | One HFSS solve: `start_hz`, `stop_hz`, `count` from 2 to 201, `type` defaulting to `Discrete` | The adaptive frequency stays `frequency_hz`. The curve is `s_spectrum.csv`. It does not use the 8-run limit |
+| `frequency_sweep` | One HFSS solve: `start_hz`, `stop_hz`, `count` from 2 to 201, `type` defaulting to `Discrete` | The adaptive frequency stays `frequency_hz`. Several frequencies are written to `s_spectrum.csv`. A sweep that comes back as one point is named in `export_errors`. It does not use the 8-run limit |
 | `frequency_points` | Top of an FDTD spec, an integer from 2 to 2001 | Written to the global monitor after the script. Omitted, the script decides; if the script also omits it, Lumerical uses about 5 points |
+| `script:name` or `script.name` | An FDTD sweep key | Rewrites the first `name = ...;` in the script. Object `overrides` run before the script and do not change those assignments |
+| `dynamic_exports` | Top of a COMSOL spec, `true` or omitted | Set it when a `printf` builds the result name and the source has no literal `name=` |
+| `run_root` | Top of a spec, or `--run-root` on a COMSOL command | Output folder. HFSS also reads `HFSS_AEDT_RUNS`, and FDTD also reads `LUMERICAL_FDTD_RUNS`. When that folder contains a non-ASCII character, HFSS solves in a temporary ASCII directory and copies the project, Touchstone, spectrum, and result folder back |
 
 An FDTD curve of at least two samples is also written as CSV. Above 512 samples the JSON keeps that path and the minimum and maximum magnitude.
 
@@ -102,7 +105,7 @@ An FDTD curve of at least two samples is also written as CSV. Above 512 samples 
 
 Given a request, an AI can find one matching paper and reproduce its COMSOL, HFSS, or FDTD simulation in one folder. The folder holds the paper, the extracted spec, the local results, and the comparison.
 
-`paper new`, `add`, `targets`, `spec`, `status`, and `compare` do not launch a solver. Save only a PDF the user supplied or one that is openly available. Do not bypass a paywall. Confirm the extracted spec before calling the existing solver command. `compare` writes `comparison.json` and `汇报.md` beside the paper. Without a tolerance it records the difference and does not call the results the same.
+`paper new`, `add`, `targets`, `spec`, `status`, and `compare` do not launch a solver. Save only a PDF the user supplied or one that is openly available. Do not bypass a paywall. Confirm the extracted spec before calling the existing solver command. `compare` writes `comparison.json` and `汇报.md` beside the paper. An interval is written as `min–max`, and a missing value as `—`. Without a tolerance it records the difference and does not call the results the same. The HFSS example is a straight rectangular waveguide. This backend does not build a CPW or return Neff or Z0.
 
 `compare` has two paths. There is no `--simulated` flag. `--result` reads a JSON object whose keys are metric names. `--report` reads a solver report and requires `--map`, which points each metric name at a path in that report, such as `results.T_heater_max_K`. Numeric strings in a COMSOL report are parsed as numbers.
 

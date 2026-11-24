@@ -383,6 +383,7 @@ def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, r
     spec_path.write_text(json.dumps(solver_payload(spec), ensure_ascii=False), encoding="utf-8")
     env = os.environ.copy()
     env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))
     env.setdefault("ANSYSLMD_LICENSE_FILE", "1055@localhost")
     completed = runner(
@@ -433,6 +434,7 @@ def _call(args: list[str], *, python: Path | None, src: Path | None, runner) -> 
             return missing
     env = os.environ.copy()
     env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("HFSS_AEDT_RUNS", str(_runs_root()))
     env.setdefault("ANSYSLMD_LICENSE_FILE", "1055@localhost")
     completed = runner(
@@ -480,6 +482,7 @@ def _invoke(script: str, payload: dict | None, *, python: Path | None, src: Path
         return problem or {"ok": False, "launched_solver": False, "stage": "backend", "error": _backend_message()}
     env = os.environ.copy()
     env["PYTHONPATH"] = str(source) + os.pathsep + env.get("PYTHONPATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("HFSS_AEDT_RUNS", str(Path(__file__).resolve().parents[2] / "runs"))
     completed = runner(
         [str(executable), "-c", script],
@@ -528,7 +531,8 @@ def _sweep_many(study: dict, *, python, src, runner) -> dict:
             return {"ok": False, "launched_solver": False, "stage": "license", "error": license_message}
     metric = study.get("metric") if isinstance(study.get("metric"), dict) else {}
     expression = metric.get("key") if isinstance(metric.get("key"), str) and metric["key"].strip() else "dB(S(P2,P1))"
-    sense = metric.get("goal") if metric.get("goal") in ("min", "max") else "max"
+    ranked = metric.get("goal") in ("min", "max")
+    sense = metric.get("goal") if ranked else None
     rows = []
     launched = False
     for combo in combos:
@@ -547,7 +551,7 @@ def _sweep_many(study: dict, *, python, src, runner) -> dict:
         rows.append(
             {
                 "parameters": combo,
-                "ok": bool(result.get("ok")) and expression in results,
+                "ok": bool(result.get("ok")) and (not ranked or expression in results),
                 "results": results,
                 "work_dir": result.get("run_dir"),
                 "error": result.get("error"),
@@ -577,27 +581,32 @@ def _combo_name(study: dict, combo: dict) -> str:
     return f"{label}_{suffix}"[:80]
 
 
-def _write_rows(study: dict, rows: list[dict], expression: str, sense: str, launched: bool, kind: str) -> dict:
-    best = _best_row(rows, expression, sense)
+def _write_rows(study: dict, rows: list[dict], expression: str, sense: str | None, launched: bool, kind: str) -> dict:
+    ranked = sense in ("min", "max")
+    best = _best_row(rows, expression, sense) if ranked else None
     label = study.get("name") or (study.get("base") or {}).get("name") or "hfss"
     folder = _runs_root() / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{_safe_name(str(label))}_{kind}"
     folder.mkdir(parents=True, exist_ok=True)
     report = {
-        "ok": bool(rows) and all(row["ok"] for row in rows) and best is not None,
+        "ok": bool(rows) and all(row["ok"] for row in rows) and (best is not None or not ranked),
         "stage": kind,
         "launched_solver": launched,
-        "goal": {"expression": expression, "sense": sense},
+        "goal": {"expression": expression, "sense": sense} if ranked else None,
         "rows": rows,
         "best": best,
         "run_count": len(rows),
         "max_runs": 8,
         "work_dir": str(folder),
         "assumptions": assumption_lines(study),
-        "note": "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。",
+        "note": (
+            "best 是这次已计算各次里按目标选出的结果。它不是没有计算过的参数上的全局最优。"
+            if ranked
+            else "这是一次参数研究，未设目标。"
+        ),
     }
-    if best is None and rows and rows[-1].get("error"):
+    if ranked and best is None and rows and rows[-1].get("error"):
         report["error"] = rows[-1]["error"]
-    elif best is None:
+    elif ranked and best is None:
         report["error"] = f"结果里没有可用的数值 {expression}。"
     report_path = folder / "report.json"
     report["report"] = str(report_path)

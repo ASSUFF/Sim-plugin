@@ -76,9 +76,11 @@ def validate_job(java: str | Path, spec: str | Path | None = None) -> dict:
             for name in spec_parameters:
                 if name not in parameters:
                     errors.append(f"规格里的参数 {name} 没有出现在 model.param().set 中。")
+            dynamic = spec_data.get("dynamic_exports") is True
             for name in exports:
-                if f"{name}=" not in source:
-                    errors.append(f"Java 需要在 ===RESULT=== 后打印 {name}=数值。")
+                if dynamic or f"{name}=" in source or f'"{name}="' in source:
+                    continue
+                errors.append(f"Java 需要在 ===RESULT=== 后打印 {name}=数值。循环打印时把 dynamic_exports 设为 true。")
 
     return {
         "ok": not errors,

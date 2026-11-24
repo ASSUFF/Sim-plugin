@@ -2,7 +2,22 @@ from pathlib import Path
 
 import pytest
 
-from lumerical_fdtd.engine import ScriptError, eval_script, flatten_matrix_literals, script_statements
+from lumerical_fdtd.engine import (
+    ScriptError,
+    eval_script,
+    flatten_matrix_literals,
+    script_statements,
+    substitute_assignments,
+)
+
+
+def test_script_assignment_rewrites_one_variable() -> None:
+    script = "L_mmi = 11e-6;\nW = 1.5e-6;\n"
+    changed = substitute_assignments(script, {"L_mmi": 12.5e-6})
+    assert changed.startswith("L_mmi = 1.25e-05;")
+    assert "W = 1.5e-6;" in changed
+    with pytest.raises(ValueError, match="没有赋值"):
+        substitute_assignments(script, {"missing": 1})
 
 
 def test_multiline_matrix_is_one_statement_and_one_line() -> None:

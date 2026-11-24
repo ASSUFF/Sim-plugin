@@ -224,7 +224,8 @@ def _markdown(root: Path, body: dict) -> str:
     lines.extend(["", "| 指标 | 论文 | 本地 | 差 | 判断 |", "|---|---|---|---|---|"])
     for row in body["rows"]:
         lines.append(
-            f"| {row['name']} | {row['paper']} | {row['simulated']} | {row['error']} | {row['detail']} |"
+            "| %s | %s | %s | %s | %s |"
+            % (row["name"], _cell(row["paper"]), _cell(row["simulated"]), _cell(row["error"]), row["detail"])
         )
     lines.extend(["", body["note"], ""])
     return "\n".join(lines)
@@ -271,6 +272,20 @@ def _dig(value, path: str):
         else:
             return None
     return current
+
+
+def _plain(value):
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _cell(value):
+    if value is None:
+        return "—"
+    if isinstance(value, dict) and "min" in value and "max" in value:
+        return "%s–%s" % (_plain(value["min"]), _plain(value["max"]))
+    return _plain(value)
 
 
 def _number(value):

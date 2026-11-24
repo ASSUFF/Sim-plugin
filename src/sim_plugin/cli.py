@@ -113,16 +113,19 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--project")
     run.add_argument("--spec")
     run.add_argument("--stoptime", type=int, default=600)
+    run.add_argument("--run-root")
 
     sweep = commands.add_parser("sweep", help="Run every combination in spec.sweep, at most 8")
     sweep.add_argument("--java", required=True)
     sweep.add_argument("--spec", required=True)
     sweep.add_argument("--stoptime", type=int, default=600)
+    sweep.add_argument("--run-root")
 
     optimize = commands.add_parser("optimize", help="Coarse-to-fine search, at most 8 runs")
     optimize.add_argument("--java", required=True)
     optimize.add_argument("--spec", required=True)
     optimize.add_argument("--stoptime", type=int, default=600)
+    optimize.add_argument("--run-root")
 
     advice = commands.add_parser("advise", help="Read a report and list facts for the AI to explain")
     advice.add_argument("--report", required=True)
@@ -299,11 +302,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         if not args.java:
             return _print({"ok": False, "launched_solver": False, "error": "run 需要 --java，或用 --project 指定已有的 .mph。"})
-        return _print(run_java(args.java, args.spec, stoptime_s=args.stoptime, check_confirmation=True))
+        return _print(run_java(args.java, args.spec, stoptime_s=args.stoptime, runs_root=args.run_root, check_confirmation=True))
     if args.command == "sweep":
-        return _print(run_sweep(args.java, args.spec, stoptime_s=args.stoptime))
+        return _print(run_sweep(args.java, args.spec, stoptime_s=args.stoptime, runs_root=args.run_root))
     if args.command == "optimize":
-        return _print(run_optimize(args.java, args.spec, stoptime_s=args.stoptime))
+        return _print(run_optimize(args.java, args.spec, stoptime_s=args.stoptime, runs_root=args.run_root))
     if args.command == "advise":
         return _print(advise(args.report))
     if args.command == "confirm":
