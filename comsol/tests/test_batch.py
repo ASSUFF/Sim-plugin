@@ -120,6 +120,7 @@ def test_compile_failure_keeps_the_compiler_text(tmp_path: Path) -> None:
     assert result["ok"] is False
     assert result["stage"] == "compile"
     assert "找不到符号" in result["error"]
+    assert "找不到符号" in result["log_tail"]
     assert seen["errors"] == "replace"
 
 
@@ -154,10 +155,16 @@ def test_fake_toolchain_returns_results(tmp_path: Path) -> None:
         if Path(command[0]).name == "comsolcompile.exe":
             Path(command[1]).with_suffix(".class").write_text("class", encoding="utf-8")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
-        return SimpleNamespace(returncode=0, stdout="===RESULT===\nL=20[mm]\n", stderr="")
+        return SimpleNamespace(
+            returncode=0,
+            stdout="MESH_ELEMENTS=6674\n===RESULT===\nL=20[mm]\n",
+            stderr="",
+        )
 
     result = run_java(java, runs_root=tmp_path / "runs", install_root=install, stoptime_s=30, runner=runner)
     assert result["ok"] is True
+    assert result["solver"]["mesh_elements"] == 6674
+    assert result["solver"]["elapsed_s"] >= 0
     assert result["launched_solver"] is True
     assert result["results"] == {"L": "20[mm]"}
     assert result["returncode"] == 0

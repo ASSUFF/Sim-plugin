@@ -11,11 +11,14 @@ import os
 import re
 from pathlib import Path
 
+from sim_plugin.pathcheck import attach as attach_path_check
+
 
 def doctor() -> dict:
     install = find_install()
     payload = install.as_dict()
     payload["launched_solver"] = False
+    attach_path_check(payload, Path(__file__).resolve().parents[2] / "runs")
     if not install.ok:
         payload["error"] = "没有找到 COMSOL。下一步：设置 COMSOL_HOME 为 Multiphysics 目录。"
         payload["stage"] = "install"

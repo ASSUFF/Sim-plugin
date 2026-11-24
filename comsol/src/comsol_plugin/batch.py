@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -143,6 +144,7 @@ def run_java(
             "stdout": compiled["stdout"],
             "stderr": compiled["stderr"],
             "error": "comsolcompile 没有生成 class 文件。\n" + _tail(compiled),
+            "log_tail": _tail(compiled),
         }
 
     log_file = work / f"{source.stem}_batch.log"
@@ -158,7 +160,9 @@ def run_java(
         "-stoptime",
         str(stoptime_s),
     ]
+    started = time.time()
     batched = _run(runner, batch_cmd, work)
+    elapsed_s = round(time.time() - started, 3)
     results = parse_results(batched["stdout"])
     saved = sorted(str(path) for path in work.glob("*.mph"))
     missing = [name for name in checked["exports"] if name not in results]
@@ -180,7 +184,10 @@ def run_java(
         "parameters": checked["parameters"],
         "exports": checked["exports"],
         "export_files": _written_files(work),
+        "solver": _solver_usage(batched["stdout"], elapsed_s),
     }
+    if not ok:
+        payload["log_tail"] = _tail(batched)
     if batched["returncode"] != 0:
         payload["error"] = "comsolbatch 返回了非零退出码。日志在 batch_log。"
     elif missing:
@@ -229,6 +236,23 @@ def _parameter_overrides(spec: str | Path | None) -> dict[str, str]:
 def _written_files(work: Path) -> list[str]:
     suffixes = {".csv", ".png", ".jpg"}
     return sorted(str(path) for path in work.iterdir() if path.is_file() and path.suffix.lower() in suffixes)
+
+
+def _solver_usage(stdout: str, elapsed_s: float) -> dict:
+    usage: dict = {"elapsed_s": elapsed_s}
+    for line in stdout.splitlines():
+        if line.startswith("===") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = name.strip()
+        if name not in ("MESH_ELEMENTS", "MODE_COUNT"):
+            continue
+        try:
+            number = int(float(value.strip()))
+        except ValueError:
+            continue
+        usage["mesh_elements" if name == "MESH_ELEMENTS" else "mode_count"] = number
+    return usage
 
 
 def _tail(completed: dict, limit: int = 20) -> str:

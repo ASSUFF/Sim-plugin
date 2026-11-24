@@ -130,6 +130,31 @@ def test_non_ascii_run_dir_uses_an_ascii_scratch(tmp_path) -> None:
     __import__("shutil").rmtree(work, ignore_errors=True)
 
 
+def test_solver_usage_reads_written_tet_count(tmp_path) -> None:
+    from hfss_aedt.engine import solver_usage
+
+    folder = tmp_path / "results"
+    folder.mkdir()
+    (folder / "DV_F80_SU.txt").write_text("NumTets 742\nFrequency 8000000000\n", encoding="utf-8")
+    usage = solver_usage(
+        folder,
+        {"frequency_hz": 1e10, "max_passes": 4, "frequency_sweep": {"count": 3}},
+        {"frequency_hz": [8e9, 1e10, 12e9], "dB(S(P2,P1))": [0, 0, 0]},
+    )
+    assert usage["mesh_tets"] == 742
+    assert usage["frequency_count"] == 3
+    assert usage["max_passes"] == 4
+
+
+def test_path_check_flags_a_chinese_onedrive_folder(tmp_path) -> None:
+    from sim_plugin.pathcheck import inspect_path
+
+    report = inspect_path(tmp_path / "OneDrive" / "中文")
+    assert report["non_ascii"] is True
+    assert report["onedrive"] is True
+    assert report["notes"]
+
+
 def test_listed_frequencies_stay_capped_at_21() -> None:
     from sim_plugin.checklist import rejection
 

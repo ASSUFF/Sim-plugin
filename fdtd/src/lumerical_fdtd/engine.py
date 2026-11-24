@@ -151,6 +151,13 @@ def solver_settings(session, objects):
         settings["wavelength stop"] = plain(session.getglobalsource("wavelength stop"))
     except Exception:
         pass
+    cells = try_get(session, "mesh cells")
+    if cells is not None:
+        settings["mesh cells"] = cells
+    try:
+        settings["frequency points"] = plain(session.getglobalmonitor("frequency points"))
+    except Exception:
+        pass
     return settings
 
 

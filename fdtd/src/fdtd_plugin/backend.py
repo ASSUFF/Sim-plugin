@@ -14,6 +14,8 @@ from lumerical_fdtd.discover import find_install, runs_dir
 from lumerical_fdtd.study import prepare_spec, validate_study
 from lumerical_fdtd.validate import validate_spec
 from sim_plugin.checklist import rejection as checklist_rejection
+from sim_plugin.pathcheck import attach as attach_path_check
+from sim_plugin.proc import attach_log_tail
 from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
 from sim_plugin.sweep import combinations
 
@@ -36,13 +38,16 @@ def doctor(*, runner=subprocess.run) -> dict:
     try:
         install = find_install()
     except FileNotFoundError as exc:
-        return {
-            "ok": False,
-            "launched_solver": False,
-            "software": "Ansys Lumerical FDTD",
-            "installed": False,
-            "error": str(exc),
-        }
+        return attach_path_check(
+            {
+                "ok": False,
+                "launched_solver": False,
+                "software": "Ansys Lumerical FDTD",
+                "installed": False,
+                "error": str(exc),
+            },
+            runs_dir(),
+        )
     payload = install.as_dict()
     python, source = _engine_python(install)
     payload.update(
@@ -59,7 +64,7 @@ def doctor(*, runner=subprocess.run) -> dict:
         payload["ok"] = False
         payload["stage"] = "install"
         payload["error"] = _numpy_error(python, source)
-    return payload
+    return attach_path_check(payload, runs_dir())
 
 
 def _engine_python(install) -> tuple[str, str]:
@@ -266,15 +271,19 @@ def _call(args: list[str], *, runner) -> dict:
     marker = "FDTD_RESULT "
     index = stdout.rfind(marker)
     if index < 0:
-        return {
-            "ok": False,
-            "launched_solver": False,
-            "solved": False,
-            "returncode": completed.returncode,
-            "stdout": stdout[-2000:],
-            "stderr": (completed.stderr or "")[-2000:],
-            "error": "FDTD 后端没有返回 FDTD_RESULT。",
-        }
+        return attach_log_tail(
+            {
+                "ok": False,
+                "launched_solver": False,
+                "solved": False,
+                "returncode": completed.returncode,
+                "stdout": stdout[-2000:],
+                "stderr": (completed.stderr or "")[-2000:],
+                "error": "FDTD 后端没有返回 FDTD_RESULT。",
+            },
+            completed.stderr,
+            stdout,
+        )
     try:
         body = json.loads(stdout[index + len(marker) :].strip().splitlines()[0])
     except json.JSONDecodeError:
@@ -321,14 +330,18 @@ def _engine(action: str, spec: dict, *, runner) -> dict:
     marker = "FDTD_RESULT "
     index = stdout.rfind(marker)
     if index < 0:
-        return {
-            "ok": False,
-            "launched_solver": False,
-            "returncode": completed.returncode,
-            "stdout": stdout[-2000:],
-            "stderr": (completed.stderr or "")[-2000:],
-            "error": "FDTD 后端没有返回 FDTD_RESULT。",
-        }
+        return attach_log_tail(
+            {
+                "ok": False,
+                "launched_solver": False,
+                "returncode": completed.returncode,
+                "stdout": stdout[-2000:],
+                "stderr": (completed.stderr or "")[-2000:],
+                "error": "FDTD 后端没有返回 FDTD_RESULT。",
+            },
+            completed.stderr,
+            stdout,
+        )
     try:
         body = json.loads(stdout[index + len(marker) :].strip().splitlines()[0])
     except json.JSONDecodeError:

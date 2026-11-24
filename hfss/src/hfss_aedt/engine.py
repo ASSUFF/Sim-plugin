@@ -460,6 +460,41 @@ def design_variable_names(hfss):
         return []
 
 
+def solver_usage(folder, spec, rows):
+    """Record the mesh and frequency count HFSS actually wrote."""
+    count = 1
+    sweep = spec.get("frequency_sweep") if isinstance(spec, dict) and isinstance(spec.get("frequency_sweep"), dict) else None
+    if sweep and isinstance(sweep.get("count"), int) and not isinstance(sweep.get("count"), bool):
+        count = sweep["count"]
+    if isinstance(rows, dict) and isinstance(rows.get("frequency_hz"), list) and rows["frequency_hz"]:
+        count = len(rows["frequency_hz"])
+    usage = {
+        "frequency_hz": None if not isinstance(spec, dict) else spec.get("frequency_hz"),
+        "max_passes": None if not isinstance(spec, dict) else spec.get("max_passes", 4),
+        "frequency_count": count,
+    }
+    tets = []
+    root = Path(folder)
+    if root.is_dir():
+        for path in root.rglob("*_SU.txt"):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("NumTets "):
+                    parts = stripped.split()
+                    if len(parts) > 1:
+                        try:
+                            tets.append(int(float(parts[1])))
+                        except ValueError:
+                            pass
+    if tets:
+        usage["mesh_tets"] = max(tets)
+    return usage
+
+
 def snapshot(hfss):
     objects = []
     try:
@@ -598,6 +633,7 @@ def run_spec(spec, spec_path=None, emit_result=True):
             if export_notes:
                 payload.setdefault("export_errors", []).extend({"error": item} for item in export_notes)
         payload["model"] = snapshot(app)
+        payload["solver"] = solver_usage(folder, spec, payload.get("s_db"))
         payload["ok"] = True
         payload["elapsed_s"] = round(time.time() - started, 3)
         code = 0

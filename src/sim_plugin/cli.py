@@ -33,7 +33,7 @@ from fdtd_plugin.backend import sweep as fdtd_sweep
 from fdtd_plugin.backend import validate as fdtd_validate
 from fdtd_plugin.optimize import optimize as fdtd_optimize
 from sim_plugin.confirm import confirm, rejection
-from sim_plugin.paper import add_paper, compare, create_case, set_spec, set_targets, status as paper_status
+from sim_plugin.paper import add_paper, compare, create_case, set_spec, set_targets, status as paper_status, write_map
 
 
 def _read_json(path: str) -> dict:
@@ -70,6 +70,8 @@ def _paper(args) -> int:
         if targets.get("ok") is False and "metrics" not in targets:
             return _print(targets)
         return _print(set_targets(args.folder, targets))
+    if args.command == "map":
+        return _print(write_map(args.folder))
     if args.command == "spec":
         spec = _read_json(args.spec)
         if spec.get("ok") is False and "stage" not in spec and "name" not in spec and "parameters" not in spec:
@@ -195,6 +197,8 @@ def main(argv: list[str] | None = None) -> int:
     paper_spec.add_argument("--spec", required=True)
     paper_state = paper_commands.add_parser("status", help="List which reproduction steps are still missing")
     paper_state.add_argument("--folder", required=True)
+    paper_map = paper_commands.add_parser("map", help="Write 对照.json from the case solver and metric names")
+    paper_map.add_argument("--folder", required=True)
     paper_compare = paper_commands.add_parser("compare", help="Compare local results with the paper. Does not launch a solver")
     paper_compare.add_argument("--folder", required=True)
     paper_compare.add_argument("--result")

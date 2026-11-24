@@ -20,6 +20,8 @@ from datetime import datetime
 from pathlib import Path
 
 from sim_plugin.checklist import rejection as checklist_rejection
+from sim_plugin.pathcheck import attach as attach_path_check
+from sim_plugin.proc import attach_log_tail
 from sim_plugin.confirm import apply_assumptions, assumption_lines, rejection, solver_payload
 from sim_plugin.result_check import problems as result_problems
 from sim_plugin.sweep import combinations
@@ -148,7 +150,9 @@ print(json.dumps({
 
 
 def doctor(*, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
-    return _invoke(_DOCTOR, None, python=python, src=src, runner=runner)
+    payload = _invoke(_DOCTOR, None, python=python, src=src, runner=runner)
+    runs = Path(os.environ["HFSS_AEDT_RUNS"]) if os.environ.get("HFSS_AEDT_RUNS") else _runs_root()
+    return attach_path_check(payload, runs)
 
 
 def validate(spec: dict, *, python: Path | None = None, src: Path | None = None, runner=subprocess.run) -> dict:
@@ -400,14 +404,18 @@ def _engine(action: str, spec: dict, *, python: Path | None, src: Path | None, r
     marker = "HFSS_RESULT "
     index = stdout.rfind(marker)
     if index < 0:
-        return {
-            "ok": False,
-            "launched_solver": False,
-            "returncode": completed.returncode,
-            "stdout": stdout[-2000:],
-            "stderr": (completed.stderr or "")[-2000:],
-            "error": "HFSS 后端没有返回 HFSS_RESULT。",
-        }
+        return attach_log_tail(
+            {
+                "ok": False,
+                "launched_solver": False,
+                "returncode": completed.returncode,
+                "stdout": stdout[-2000:],
+                "stderr": (completed.stderr or "")[-2000:],
+                "error": "HFSS 后端没有返回 HFSS_RESULT。",
+            },
+            completed.stderr,
+            stdout,
+        )
     line = stdout[index + len(marker) :].strip().splitlines()[0]
     try:
         body = json.loads(line)
@@ -454,15 +462,19 @@ def _parse_result(completed, marker: str) -> dict:
     stdout = completed.stdout or ""
     index = stdout.rfind(marker)
     if index < 0:
-        return {
-            "ok": False,
-            "launched_solver": False,
-            "solved": False,
-            "returncode": completed.returncode,
-            "stdout": stdout[-2000:],
-            "stderr": (completed.stderr or "")[-2000:],
-            "error": "HFSS 后端没有返回 HFSS_RESULT。",
-        }
+        return attach_log_tail(
+            {
+                "ok": False,
+                "launched_solver": False,
+                "solved": False,
+                "returncode": completed.returncode,
+                "stdout": stdout[-2000:],
+                "stderr": (completed.stderr or "")[-2000:],
+                "error": "HFSS 后端没有返回 HFSS_RESULT。",
+            },
+            completed.stderr,
+            stdout,
+        )
     line = stdout[index + len(marker) :].strip().splitlines()[0]
     try:
         body = json.loads(line)

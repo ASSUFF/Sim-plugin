@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from sim_plugin.paper import add_paper, compare, create_case, set_spec, set_targets, status
+from sim_plugin.paper import add_paper, compare, create_case, set_spec, set_targets, status, write_map
 
 
 def test_case_holds_the_request_and_a_saved_pdf(tmp_path: Path) -> None:
@@ -19,6 +19,23 @@ def test_case_holds_the_request_and_a_saved_pdf(tmp_path: Path) -> None:
     assert added["pdf"].endswith("paper.pdf")
     assert (folder / "paper.pdf").read_bytes() == b"%PDF-1.4"
     assert source.is_file()
+
+
+def test_report_array_index_and_default_map(tmp_path: Path) -> None:
+    folder = tmp_path / "case"
+    create_case(folder, "透射", "fdtd")
+    set_targets(folder, {"metrics": [{"name": "T", "paper": 0.5, "tolerance": 0.1}]})
+    written = write_map(folder)
+    assert written["mapping"]["T"] == "exports[0].data.array.values[middle]"
+    report = tmp_path / "report.json"
+    report.write_text(
+        json.dumps({"exports": [{"data": {"array": {"values": [0.1, 0.48, 0.2]}}}]}),
+        encoding="utf-8",
+    )
+    result = compare(folder, {}, report=report)
+    assert result["mapping_source"] == "对照.json"
+    assert result["rows"][0]["simulated"] == 0.48
+    assert result["rows"][0]["within"] is True
 
 
 def test_missing_pdf_is_not_invented(tmp_path: Path) -> None:

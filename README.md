@@ -4,9 +4,9 @@ This is a sim-plugin for Ansys Electronics (HFSS), Lumerical (FDTD), and COMSOL.
 
 中文说明：[使用说明.md](使用说明.md)
 
-Updated 2026-11-24. Version `v0.2.1124.1`.
+Updated 2026-11-24. Version `v0.2.1124.2`.
 
-The version has four parts, for example `v0.2.1124.1`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
+The version has four parts, for example `v0.2.1124.2`. The first `0` means it is not a formal release yet. The second part is the major version and changes only for a large update. This update changes it from `1` to `2` because the plugin can now reproduce a paper. The third part is the month and day of the update. The fourth part is the minor version for that day and increases by 1 for a small update.
 
 This folder is a simulation plugin. After you place it anywhere on a computer, an AI can drive the local COMSOL, HFSS, and Lumerical FDTD installations through a command line or MCP: solve with given parameters, change parameters, sweep, pick the best result among the runs that were actually computed, and collect facts for advice.
 
@@ -105,7 +105,7 @@ An FDTD curve of at least two samples is also written as CSV. Above 512 samples 
 
 Given a request, an AI can find one matching paper and reproduce its COMSOL, HFSS, or FDTD simulation in one folder. The folder holds the paper, the extracted spec, the local results, and the comparison.
 
-`paper new`, `add`, `targets`, `spec`, `status`, and `compare` do not launch a solver. Save only a PDF the user supplied or one that is openly available. Do not bypass a paywall. Confirm the extracted spec before calling the existing solver command. `compare` writes `comparison.json` and `汇报.md` beside the paper. An interval is written as `min–max`, and a missing value as `—`. Without a tolerance it records the difference and does not call the results the same. The HFSS example is a straight rectangular waveguide. This backend does not build a CPW or return Neff or Z0.
+`paper new`, `add`, `targets`, `spec`, `status`, and `compare` do not launch a solver. Save only a PDF the user supplied or one that is openly available. Do not bypass a paywall. Confirm the extracted spec before calling the existing solver command. `compare` writes `comparison.json` and `汇报.md` beside the paper. An interval is written as `min–max`, and a missing value as `—`. Without a tolerance it records the difference and does not call the results the same. The HFSS example is a straight rectangular waveguide. This backend does not build a CPW or return Neff or Z0. `paper map --folder FOLDER` writes `对照.json`. FDTD takes the middle sample of the first export, COMSOL takes `results.<name>`, and HFSS takes the middle S21 unless the metric name contains S11. A path may end in `[5]` or `[middle]`. Without `--map`, compare uses `对照.json` when it is present, then this default. `doctor` also reports whether the run folder is non-ASCII, on OneDrive, or on a network drive, and whether the temp directory is writable. A failed solve keeps the last 20 lines of solver output in `log_tail`.
 
 `compare` has two paths. There is no `--simulated` flag. `--result` reads a JSON object whose keys are metric names. `--report` reads a solver report and requires `--map`, which points each metric name at a path in that report, such as `results.T_heater_max_K`. Numeric strings in a COMSOL report are parsed as numbers.
 

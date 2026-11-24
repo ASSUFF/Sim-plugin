@@ -115,6 +115,11 @@ def compare(folder: str | Path, simulated: dict, report: str | Path | None = Non
     metrics, error = _metrics(targets)
     if error:
         return _error(error)
+    mapping_source = None
+    if report is not None:
+        mapping, mapping_source = _resolve_mapping(root, metrics, mapping)
+        if not mapping:
+            return _error("从仿真报告取值时需要 mapping，把指标名对应到报告里的路径。")
     numbers = _simulated_numbers(simulated, report, mapping)
     if isinstance(numbers, dict) and numbers.get("ok") is False:
         return numbers
@@ -132,6 +137,9 @@ def compare(folder: str | Path, simulated: dict, report: str | Path | None = Non
         "unchecked": len(unknown),
         "note": "比对只针对论文里记下的量和这次本地算出的量。它不是论文未给出的参数上的全局最优。",
     }
+    if mapping_source:
+        body["mapping"] = mapping
+        body["mapping_source"] = mapping_source
     _write(root / "result.json", {"metrics": [{"name": row["name"], "simulated": row["simulated"]} for row in rows]})
     _write(root / "comparison.json", body)
     report_path = root / "汇报.md"
@@ -264,14 +272,129 @@ def _metrics(targets: dict) -> tuple[list[dict], str | None]:
     return metrics, None
 
 
+def default_mapping(solver: str, names: list[str]) -> dict[str, str]:
+    """Paths that match the three solvers' usual report shapes."""
+    kind = (solver or "").strip().lower()
+    mapping: dict[str, str] = {}
+    for name in names:
+        folded = name.lower().replace("_", "").replace("-", "")
+        if kind == "hfss":
+            path = "s_db.dB(S(P1,P1))[middle]" if "s11" in folded else "s_db.dB(S(P2,P1))[middle]"
+        elif kind == "comsol":
+            path = "results.%s" % name
+        elif kind == "fdtd":
+            path = "exports[0].data.array.values[middle]"
+        else:
+            return {}
+        mapping[name] = path
+    return mapping
+
+
+def write_map(folder: str | Path) -> dict:
+    """Write 对照.json from the case solver and the paper's metric names."""
+    root = _case(folder)
+    if isinstance(root, dict):
+        return root
+    request = _read(root / "request.json") or {}
+    targets = _read(root / "targets.json")
+    if isinstance(targets, dict):
+        metrics, error = _metrics(targets)
+        if error:
+            return _error(error)
+        names = [item["name"] for item in metrics]
+    else:
+        names = ["T"]
+    solver = str(request.get("solver") or "")
+    mapping = default_mapping(solver, names)
+    if not mapping:
+        return _error("需要 request.json 里的 solver 为 comsol、hfss 或 fdtd。")
+    path = root / "对照.json"
+    _write(path, mapping)
+    return {
+        "ok": True,
+        "launched_solver": False,
+        "path": str(path),
+        "solver": solver,
+        "mapping": mapping,
+    }
+
+
+def _resolve_mapping(root: Path, metrics: list[dict], mapping: dict | None) -> tuple[dict | None, str | None]:
+    if isinstance(mapping, dict) and mapping:
+        return mapping, "argument"
+    saved = root / "对照.json"
+    loaded = _read(saved) if saved.is_file() else None
+    if isinstance(loaded, dict) and loaded:
+        return loaded, "对照.json"
+    request = _read(root / "request.json") or {}
+    guessed = default_mapping(str(request.get("solver") or ""), [item["name"] for item in metrics])
+    if guessed:
+        return guessed, "default"
+    return None, None
+
+
 def _dig(value, path: str):
     current = value
-    for part in path.split("."):
+    for part in _path_parts(path):
+        if part is None:
+            return None
+        if part.startswith("["):
+            if part == "[middle]":
+                if isinstance(current, list):
+                    if not current:
+                        return None
+                    current = current[len(current) // 2]
+                continue
+            if not isinstance(current, list):
+                return None
+            try:
+                index = int(part[1:-1])
+            except ValueError:
+                return None
+            if index < 0 or index >= len(current):
+                return None
+            current = current[index]
+            continue
         if isinstance(current, dict) and part in current:
             current = current[part]
         else:
             return None
     return current
+
+
+def _path_parts(path: str) -> list[str | None]:
+    parts: list[str | None] = []
+    buf: list[str] = []
+    depth = 0
+    index = 0
+    while index < len(path):
+        ch = path[index]
+        if ch == "(":
+            depth += 1
+            buf.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif ch == "." and depth == 0:
+            if buf:
+                parts.append("".join(buf))
+                buf = []
+        elif ch == "[" and depth == 0:
+            if buf:
+                parts.append("".join(buf))
+                buf = []
+            end = path.find("]", index)
+            if end < 0:
+                return [None]
+            parts.append(path[index : end + 1])
+            index = end + 1
+            continue
+        else:
+            buf.append(ch)
+        index += 1
+    if buf:
+        parts.append("".join(buf))
+    return parts
 
 
 def _plain(value):
